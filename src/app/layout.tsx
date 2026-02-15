@@ -1,3 +1,5 @@
+import './globals.css'  // Tambah baris ini!
+
 export const metadata = {
   title: 'Claude Chat',
   description: 'AI Chat with Claude',
