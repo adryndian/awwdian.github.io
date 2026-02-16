@@ -52,6 +52,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
   const handleSelectChat = useCallback(async (chat: ChatSession) => {
     setCurrentChatId(chat.id);
     setSelectedModel(chat.defaultModel || DEFAULT_MODEL);
+    setIsLoading(true);
     try {
       const msgs = await getChatMessages(chat.id);
       setMessages(msgs.map((m: any) => ({
@@ -66,6 +67,8 @@ export function ChatContainer({ userId }: ChatContainerProps) {
       })));
     } catch (error) {
       console.error('Failed to load messages:', error);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -75,6 +78,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
 
     let chatId = currentChatId;
 
+    // 1️⃣ Buat chat baru jika belum ada
     if (!chatId) {
       try {
         const title = trimmed.slice(0, 50) || 'New Chat';
@@ -87,24 +91,38 @@ export function ChatContainer({ userId }: ChatContainerProps) {
       }
     }
 
+    // 2️⃣ TYPE GUARD: Pastikan chatId tidak null
+    if (!chatId) {
+      console.error('Error: chatId masih null setelah pembuatan');
+      return;
+    }
+
+    // 3️⃣ Deklarasi userMessage (SETELAH chatId pasti ada)
     const userMessage: Message = {
       id: uuidv4(),
       role: 'user',
       content: trimmed,
       timestamp: new Date(),
-      files: files?.map(f => ({ name: f.name, content: f.data, extension: f.name.split('.').pop() || '' })),
+      files: files?.map(f => ({ 
+        name: f.name, 
+        content: f.data, 
+        extension: f.name.split('.').pop() || '' 
+      })),
     };
 
+    // 4️⃣ Update UI state
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
+    // 5️⃣ Save user message ke database
     try {
       await saveMessage(userMessage, chatId);
     } catch (e) {
       console.error('Failed to save user message:', e);
     }
 
+    // 6️⃣ Setup untuk assistant message (streaming)
     const assistantId = uuidv4();
     const assistantPlaceholder: Message = {
       id: assistantId,
@@ -116,6 +134,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
     };
     setMessages(prev => [...prev, assistantPlaceholder]);
 
+    // 7️⃣ Call API
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -132,7 +151,9 @@ export function ChatContainer({ userId }: ChatContainerProps) {
         }),
       });
 
-      if (!res.ok) throw new Error('API error');
+      if (!res.ok) {
+        throw new Error('API error');
+      }
 
       const data = await res.json();
       const responseText: string = data.content ?? '';
@@ -149,15 +170,19 @@ export function ChatContainer({ userId }: ChatContainerProps) {
         cost: usage?.costUSD,
       };
 
+      // Update UI dengan response
       setMessages(prev => prev.map(m => m.id === assistantId ? assistantMessage : m));
       if (usage) setLastUsage(usage);
 
+      // 8️⃣ Save assistant message ke database
       try {
         await saveMessage(assistantMessage, chatId);
+        await refreshChats(); // Update timestamp chat di sidebar
       } catch (e) {
         console.error('Failed to save assistant message:', e);
       }
     } catch (error) {
+      console.error('Chat error:', error);
       setMessages(prev => prev.map(m =>
         m.id === assistantId
           ? { ...m, content: 'Sorry, an error occurred. Please try again.', isStreaming: false }
@@ -180,6 +205,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
       />
       
       <main className="flex-1 flex flex-col h-full relative">
+        {/* Header */}
         <header className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-black/50 backdrop-blur-sm">
           <div className="flex items-center gap-4">
             <ModelSelector 
@@ -198,6 +224,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
           </div>
         </header>
 
+        {/* Messages Area */}
         <div className="flex-1 overflow-hidden">
           <MessageList 
             messages={messages} 
@@ -205,6 +232,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
           />
         </div>
 
+        {/* Input Area */}
         <div className="border-t border-white/10 p-4 bg-black/50 backdrop-blur-sm">
           <InputArea 
             value={input}
@@ -215,6 +243,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
           />
         </div>
 
+        {/* Cost Toast */}
         {lastUsage && (
           <CostToast 
             usage={lastUsage} 
