@@ -1,106 +1,76 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Sparkles, Image as ImageIcon, Video, Zap } from 'lucide-react';
-import { GlassCard } from '../ui/GlassCard';
-import { MODELS } from '@/lib/models/config';
+import { ChevronDown, Zap, Brain, Bolt } from 'lucide-react';
 import { ModelId } from '@/types';
+import { MODELS } from '@/lib/models/config';
 
-const AVAILABLE_MODELS = Object.values(MODELS);
-
-import { cn } from '@/lib/utils';
-
+// Interface yang sesuai dengan pemanggilan di ChatContainer
 interface ModelSelectorProps {
-  selectedModel: ModelId;
-  onSelectModel: (modelId: ModelId) => void;
+  selected: ModelId;
+  onSelect: (model: ModelId) => void;
 }
 
-export function ModelSelector({ selectedModel, onSelectModel }: ModelSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  
-  const selected = AVAILABLE_MODELS.find(m => m.id === selectedModel) || AVAILABLE_MODELS[0];
+// Mapping icon untuk setiap model
+const modelIcons = {
+  'claude-sonnet-4-5': Zap,
+  'claude-opus-4-6': Brain,
+  'deepseek-r1': Bolt,
+};
 
-  const getIcon = (icon: string) => {
-    switch (icon) {
-      case 'video': return <Video className="w-4 h-4" />;
-      case 'image': return <ImageIcon className="w-4 h-4" />;
-      case 'brain': return <Sparkles className="w-4 h-4" />;
-      default: return <Zap className="w-4 h-4" />;
-    }
-  };
+export function ModelSelector({ selected, onSelect }: ModelSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedModel = MODELS[selected];
+  const Icon = modelIcons[selected] || Zap;
 
   return (
-    <div className="relative z-50">
-      <GlassCard
-        hover
+    <div className="relative">
+      <button
         onClick={() => setIsOpen(!isOpen)}
-        className="px-4 py-2 cursor-pointer"
+        className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors text-white"
       >
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: selected.color }} />
-          <span className="text-white font-medium">{selected.name}</span>
-          <ChevronDown className={cn(
-            'w-4 h-4 text-white/60 transition-transform',
-            isOpen && 'rotate-180'
-          )} />
-        </div>
-      </GlassCard>
+        <Icon className="w-4 h-4" style={{ color: selectedModel.color }} />
+        <span className="text-sm font-medium">{selectedModel.name}</span>
+        <ChevronDown className="w-4 h-4 text-white/40" />
+      </button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsOpen(false)}
-              className="fixed inset-0 z-40"
-            />
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              className="absolute top-full left-0 right-0 mt-2 z-50"
-            >
-              <GlassCard className="p-2 max-h-80 overflow-y-auto">
-                {AVAILABLE_MODELS.map((model) => (
-                  <motion.button
-                    key={model.id}
-                    whileHover={{ x: 4 }}
-                    onClick={() => {
-                      onSelectModel(model.id);
-                      setIsOpen(false);
-                    }}
-                    className={cn(
-                      'w-full flex items-start gap-3 p-3 rounded-xl text-left',
-                      'transition-colors',
-                      selectedModel === model.id 
-                        ? 'bg-white/20' 
-                        : 'hover:bg-white/10'
-                    )}
-                  >
-                    <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white"
-                      style={{ backgroundColor: model.color }}
-                    >
-                      {getIcon(model.icon)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-white">{model.name}</div>
-                      <div className="text-sm text-white/60 truncate">{model.description}</div>
-                      <div className="text-xs text-white/40 mt-1">${model.inputPricePer1K}/1K in · ${model.outputPricePer1K}/1K out</div>
-                    </div>
-                    {selectedModel === model.id && (
-                      <div className="w-2 h-2 rounded-full bg-[#007AFF] self-center" />
-                    )}
-                  </motion.button>
-                ))}
-              </GlassCard>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {isOpen && (
+        <>
+          <div 
+            className="fixed inset-0 z-10" 
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute top-full left-0 mt-2 w-64 bg-gray-900 border border-white/10 rounded-xl shadow-xl z-20 overflow-hidden">
+            {(Object.keys(MODELS) as ModelId[]).map((modelId) => {
+              const model = MODELS[modelId];
+              const ModelIcon = modelIcons[modelId] || Zap;
+              const isSelected = selected === modelId;
+              
+              return (
+                <button
+                  key={modelId}
+                  onClick={() => {
+                    onSelect(modelId);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-start gap-3 p-3 text-left transition-colors ${
+                    isSelected ? 'bg-white/10' : 'hover:bg-white/5'
+                  }`}
+                >
+                  <ModelIcon className="w-5 h-5 mt-0.5" style={{ color: model.color }} />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-white">{model.name}</p>
+                    <p className="text-xs text-white/50">{model.description}</p>
+                    <p className="text-xs text-white/30 mt-1">
+                      ${model.inputPricePer1K}/1K tokens
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
