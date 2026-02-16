@@ -1,47 +1,137 @@
-'use client'
+'use client';
 
-interface Props {
-  value: string
-  onChange: (value: string) => void
-  onSend: () => void
-  isLoading: boolean
+import { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Send, Paperclip } from 'lucide-react';
+import { FileUpload } from './FileUpload';
+
+interface UploadedFile {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  data: string;
+  preview?: string;
 }
 
-export default function InputArea({ value, onChange, onSend, isLoading }: Props) {
+interface InputAreaProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSend: (files?: UploadedFile[]) => void;
+  isLoading?: boolean;
+  placeholder?: string;
+}
+
+export function InputArea({
+  value,
+  onChange,
+  onSend,
+  isLoading,
+  placeholder = 'Message...',
+}: InputAreaProps) {
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [showUpload, setShowUpload] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [value]);
+
+  const handleSend = () => {
+    if ((!value.trim() && files.length === 0) || isLoading) return;
+    onSend(files.length > 0 ? files : undefined);
+    setFiles([]);
+    setShowUpload(false);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      onSend()
+      e.preventDefault();
+      handleSend();
     }
-  }
+  };
 
   return (
-    <div className="max-w-3xl mx-auto relative">
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Message Claude..."
-        rows={1}
-        className="w-full bg-claude-input text-claude-text rounded-xl pl-4 pr-12 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-claude-accent max-h-32"
-        style={{ minHeight: '52px' }}
-      />
-      <button
-        onClick={onSend}
-        disabled={!value.trim() || isLoading}
-        className="absolute right-3 bottom-3 p-1.5 bg-claude-accent text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-opacity-90 transition-colors"
-      >
-        {isLoading ? (
-          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        ) : (
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
-        )}
-      </button>
+    <div className="space-y-3">
+      {/* File Upload Panel */}
+      {showUpload && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          className="p-4 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl"
+        >
+          <FileUpload
+            files={files}
+            onFilesChange={setFiles}
+            maxFiles={5}
+          />
+        </motion.div>
+      )}
+
+      {/* Input Container */}
+      <div className="relative flex items-end gap-2 p-2 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl">
+        {/* Attach Button */}
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setShowUpload(!showUpload)}
+          className={`
+            p-3 rounded-xl transition-colors
+            ${showUpload ? 'bg-[#007AFF]/30 text-[#007AFF]' : 'hover:bg-white/10 text-white/60'}
+          `}
+        >
+          <Paperclip className="w-5 h-5" />
+        </motion.button>
+
+        {/* Textarea */}
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          rows={1}
+          disabled={isLoading}
+          className="
+            flex-1 bg-transparent text-white placeholder-white/40
+            resize-none outline-none py-3 px-2
+            min-h-[48px] max-h-[200px]
+            text-base
+          "
+        />
+
+        {/* Send Button */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={handleSend}
+          disabled={!value.trim() && files.length === 0}
+          className={`
+            p-3 rounded-xl bg-[#007AFF] text-white
+            disabled:opacity-40 disabled:cursor-not-allowed
+            hover:bg-[#0051D5] transition-colors
+            shadow-lg shadow-[#007AFF]/30
+          `}
+        >
+          {isLoading ? (
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <Send className="w-5 h-5" />
+          )}
+        </motion.button>
+      </div>
+
+      {/* File count indicator */}
+      {files.length > 0 && !showUpload && (
+        <div className="text-xs text-white/50 px-2">
+          {files.length} file{files.length > 1 ? 's' : ''} attached
+        </div>
+      )}
     </div>
-  )
+  );
 }

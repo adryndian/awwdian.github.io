@@ -1,6 +1,6 @@
 {
   "name": "claude-bedrock-chat",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,10 +13,17 @@
     "react-dom": "^18.2.0",
     "@aws-sdk/client-bedrock-runtime": "^3.490.0",
     "@supabase/supabase-js": "^2.39.0",
+    "@supabase/auth-helpers-nextjs": "^0.8.0",
     "uuid": "^9.0.0",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
-    "prismjs": "^1.29.0"
+    "prismjs": "^1.29.0",
+    "react-dropzone": "^14.2.3",
+    "date-fns": "^3.0.0",
+    "framer-motion": "^10.16.0",
+    "lucide-react": "^0.294.0",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
@@ -24,8 +31,8 @@
     "@types/react-dom": "^18.2.0",
     "@types/uuid": "^9.0.0",
     "typescript": "^5.3.0",
-    "tailwindcss": "^3.3.0",
-    "postcss": "^8.4.31",
-    "autoprefixer": "^10.4.16"
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0"
   }
 }

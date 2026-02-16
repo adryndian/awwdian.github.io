@@ -1,139 +1,219 @@
-'use client'
+'use client';
 
-import { useState, useRef, useEffect } from 'react'
-import MessageList from './MessageList'
-import InputArea from './InputArea'
-import Sidebar from './Sidebar'
-import { Message } from '@/types/chat'
-import { v4 as uuidv4 } from 'uuid'
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sidebar } from './Sidebar';
+import { InputArea } from './InputArea';
+import { ModelSelector } from './ModelSelector';
+import { GlassCard } from './GlassCard';
+import { MessageList } from './MessageList';
+import { ChatSession, Message, UploadedFile } from '@/types';
+import { ModelId, DEFAULT_MODEL } from '@/lib/models';
+import { invokeModel } from '@/lib/bedrock';
+import { supabase } from '@/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
+import { toast } from 'sonner';
 
-export default function Chat() {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+interface ChatProps {
+  userId: string;
+  userEmail: string;
+}
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+export function Chat({ userId, userEmail }: ChatProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [chats, setChats] = useState<ChatSession[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ModelId>(DEFAULT_MODEL);
+  const [isStreaming, setIsStreaming] = useState(false);
 
+  // Load chats from Supabase
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    loadChats();
+  }, []);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return
+  const loadChats = async () => {
+    const { data, error } = await supabase
+      .from('chats')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      toast.error('Failed to load chats');
+      return;
+    }
+
+    setChats(data || []);
+  };
+
+  const saveChat = async (chatId: string, title: string, messages: Message[]) => {
+    const { error } = await supabase
+      .from('chats')
+      .upsert({
+        id: chatId,
+        user_id: userId,
+        title,
+        messages,
+        model_id: selectedModel,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (error) {
+      console.error('Failed to save chat:', error);
+    }
+  };
+
+  const handleSend = async (files?: UploadedFile[]) => {
+    if ((!input.trim() && !files?.length) || isLoading) return;
 
     const userMessage: Message = {
       id: uuidv4(),
       role: 'user',
       content: input,
-      timestamp: new Date()
-    }
+      timestamp: new Date(),
+      files,
+    };
 
-    setMessages(prev => [...prev, userMessage])
-    setInput('')
-    setIsLoading(true)
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    setInput('');
+    setIsLoading(true);
+    setIsStreaming(true);
+
+    // Create new chat if needed
+    let chatId = currentChatId;
+    if (!chatId) {
+      chatId = uuidv4();
+      setCurrentChatId(chatId);
+      
+      // Generate title from first message
+      const title = input.slice(0, 50) + (input.length > 50 ? '...' : '');
+      await saveChat(chatId, title, newMessages);
+      await loadChats();
+    }
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map(m => ({
-            role: m.role,
-            content: m.content
-          })),
-          chatId: currentChatId
-        })
-      })
+      const response = await invokeModel(
+        newMessages.map(m => ({
+          role: m.role,
+          content: m.content,
+          files: m.files,
+        })),
+        selectedModel
+      );
 
-      const data = await response.json()
+      const assistantMessage: Message = {
+        id: uuidv4(),
+        role: 'assistant',
+        content: response.content,
+        timestamp: new Date(),
+      };
 
-      if (data.content) {
-        const assistantMessage: Message = {
-          id: uuidv4(),
-          role: 'assistant',
-          content: data.content,
-          timestamp: new Date()
-        }
-        setMessages(prev => [...prev, assistantMessage])
-      }
+      const finalMessages = [...newMessages, assistantMessage];
+      setMessages(finalMessages);
+      await saveChat(chatId, chats.find(c => c.id === chatId)?.title || 'New Chat', finalMessages);
     } catch (error) {
-      console.error('Error:', error)
+      toast.error('Failed to get response from AI');
+      console.error(error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
+      setIsStreaming(false);
     }
-  }
+  };
 
-  const startNewChat = () => {
-    setMessages([])
-    setCurrentChatId(null)
-    setSidebarOpen(false)
-  }
+  const handleNewChat = () => {
+    setCurrentChatId(null);
+    setMessages([]);
+    setInput('');
+    setSidebarOpen(false);
+  };
+
+  const handleSelectChat = async (chatId: string) => {
+    const chat = chats.find(c => c.id === chatId);
+    if (chat) {
+      setCurrentChatId(chatId);
+      setMessages(chat.messages);
+      setSelectedModel(chat.model_id as ModelId);
+      setSidebarOpen(false);
+    }
+  };
+
+  const handleDeleteChat = async (chatId: string) => {
+    const { error } = await supabase
+      .from('chats')
+      .delete()
+      .eq('id', chatId);
+
+    if (error) {
+      toast.error('Failed to delete chat');
+      return;
+    }
+
+    if (currentChatId === chatId) {
+      handleNewChat();
+    }
+    
+    await loadChats();
+    toast.success('Chat deleted');
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/login';
+  };
 
   return (
-    <div className="flex h-screen bg-[#1a1a1a] text-[#e0e0e0] overflow-hidden">
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+    <div className="flex h-screen bg-black overflow-hidden">
+      <Sidebar
+        chats={chats}
+        currentChatId={currentChatId}
+        onSelectChat={handleSelectChat}
+        onNewChat={handleNewChat}
+        onDeleteChat={handleDeleteChat}
+        user={{ email: userEmail }}
+        onLogout={handleLogout}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
 
-      {/* Sidebar */}
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#2d2d2d] transform transition-transform duration-300
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <Sidebar 
-          onNewChat={startNewChat}
-          currentChatId={currentChatId}
-          onSelectChat={setCurrentChatId}
-        />
-      </div>
-
-      {/* Main Chat Area */}
       <div className="flex-1 flex flex-col h-full relative">
-        {/* Mobile Header */}
-        <div className="lg:hidden flex items-center p-4 bg-[#2d2d2d] border-b border-[#4d4d4d]">
-          <button 
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 hover:bg-[#3d3d3d] rounded-lg transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <span className="ml-3 font-semibold">Claude Chat</span>
-        </div>
+        {/* Header */}
+        <GlassCard className="mx-4 mt-4 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <ModelSelector
+              selectedModel={selectedModel}
+              onSelectModel={setSelectedModel}
+            />
+            <div className="hidden sm:block text-sm text-white/60">
+              {messages.length} messages
+            </div>
+          </div>
+        </GlassCard>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-[#a0a0a0]">
-              <h1 className="text-3xl font-bold mb-2">Claude</h1>
-              <p>How can I help you today?</p>
-            </div>
-          ) : (
-            <MessageList messages={messages} />
-          )}
-          <div ref={messagesEndRef} />
+        <div className="flex-1 overflow-y-auto p-4">
+          <MessageList
+            messages={messages}
+            isStreaming={isStreaming}
+          />
         </div>
 
-        {/* Input Area */}
-        <div className="p-4 bg-[#1a1a1a] border-t border-[#4d4d4d]">
-          <InputArea 
+        {/* Input */}
+        <div className="p-4">
+          <InputArea
             value={input}
             onChange={setInput}
-            onSend={handleSend}
+            onSend={() => handleSend()}
+            onFileUpload={(files) => handleSend(files)}
             isLoading={isLoading}
+            modelId={selectedModel}
+            placeholder={`Message ${selectedModel.includes('opus') ? 'Opus' : 'Sonnet'}...`}
           />
         </div>
       </div>
     </div>
-  )
+  );
 }
