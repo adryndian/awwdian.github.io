@@ -1,6 +1,4 @@
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
-import { MODELS } from '../models/config';
-import { ModelId } from '@/types';
 
 const client = new BedrockRuntimeClient({
   region: 'us-west-2',

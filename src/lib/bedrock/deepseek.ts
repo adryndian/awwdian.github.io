@@ -1,7 +1,7 @@
 import { InvokeModelWithResponseStreamCommand } from '@aws-sdk/client-bedrock-runtime';
 import { client } from './client';
 import { MODELS } from '../models/config';
-import { Message, ModelId } from '@/types';
+import { Message, ModelId, ExtractedFile } from '@/types';
 
 export async function* streamDeepSeek(
   messages: Message[],

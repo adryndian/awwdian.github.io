@@ -1,7 +1,7 @@
 import { InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { client } from './client';
 import { MODELS } from '../models/config';
-import { Message, ModelId, UsageInfo } from '@/types';
+import { Message, ModelId, UsageInfo, ExtractedFile } from '@/types';
 
 export async function invokeClaude(
   messages: Message[],

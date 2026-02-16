@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
         async start(controller) {
           try {
             const generator = streamDeepSeek(messages, files);
-            let result = { inputTokens: 0, outputTokens: 0, costUSD: 0 };
+            let result: { inputTokens: number; outputTokens: number; costUSD: number } = { inputTokens: 0, outputTokens: 0, costUSD: 0 };
             
             for await (const chunk of generator) {
               const data = `data: ${JSON.stringify({ content: chunk })}\n\n`;
@@ -23,7 +23,10 @@ export async function POST(req: NextRequest) {
             }
             
             // Get final result
-            result = await generator.next().then(r => r.value || result);
+            const finalResult = await generator.next();
+            if (finalResult.value && typeof finalResult.value === 'object') {
+              result = finalResult.value as { inputTokens: number; outputTokens: number; costUSD: number };
+            }
             
             // Send usage data
             const usageData = `data: ${JSON.stringify({ usage: result })}\n\n`;
