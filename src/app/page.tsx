@@ -1,9 +1,5 @@
-import Chat from '@/components/Chat'
+import { redirect } from 'next/navigation';
 
 export default function Home() {
-  return (
-    <main className="min-h-screen bg-claude-bg">
-      <Chat />
-    </main>
-  )
+  redirect('/login');
 }

@@ -15,8 +15,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  // Redirect logged in users from login page
-  if (req.nextUrl.pathname === '/login' && session) {
+  // Redirect logged in users from auth pages
+  if ((req.nextUrl.pathname === '/login' || req.nextUrl.pathname === '/register') && session) {
     return NextResponse.redirect(new URL('/chat', req.url));
   }
 
@@ -24,5 +24,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/chat/:path*', '/login'],
+  matcher: ['/chat/:path*', '/login', '/register'],
 };
