@@ -1,8 +1,9 @@
 import { BedrockRuntimeClient, InvokeModelCommand, InvokeModelWithResponseStreamCommand } from '@aws-sdk/client-bedrock-runtime';
-import { ModelId, supportsFileUpload, supportsImageUpload } from './models';
+import { MODELS } from './models/config';
+import { ModelId } from '@/types';
 
 const client = new BedrockRuntimeClient({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || 'us-west-2',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
@@ -12,158 +13,130 @@ const client = new BedrockRuntimeClient({
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
-  files?: UploadedFile[];
-}
-
-export interface UploadedFile {
-  name: string;
-  type: string;
-  data: string; // base64
-  size: number;
+  files?: { name: string; content: string }[];
 }
 
 export async function invokeModel(
   messages: Message[], 
-  modelId: ModelId,
-  options?: {
-    maxTokens?: number;
-    temperature?: number;
-    topP?: number;
-  }
-) {
-  const modelSupportsFiles = supportsFileUpload(modelId);
-  const modelSupportsImages = supportsImageUpload(modelId);
-
-  // Format messages for Bedrock
-  const formattedMessages = messages.map(msg => {
-    const content: any[] = [{ type: 'text', text: msg.content }];
-    
-    // Add files if supported
-    if (msg.files && (modelSupportsFiles || modelSupportsImages)) {
-      msg.files.forEach(file => {
-        if (file.type.startsWith('image/') && modelSupportsImages) {
-          content.push({
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: file.type,
-              data: file.data,
-            },
-          });
-        } else if (modelSupportsFiles) {
-          // For non-image files, add as text context
-          content.push({
-            type: 'text',
-            text: `\n\n[File: ${file.name}]\n${file.data.substring(0, 1000)}...`,
-          });
-        }
-      });
-    }
-    
-    return {
-      role: msg.role,
-      content,
-    };
-  });
-
-  // Different payload structure for different models
-  let payload: any;
+  modelId: ModelId
+): Promise<{ content: string; inputTokens: number; outputTokens: number; costUSD: number }> {
+  const model = MODELS[modelId];
   
-  if (modelId.includes('nova-reels')) {
-    // Nova Reels specific payload for image/video generation
-    payload = {
-      taskType: 'TEXT_IMAGE' as const,
-      textToImageParams: {
-        text: messages[messages.length - 1]?.content || '',
-      },
-      imageGenerationConfig: {
-        numberOfImages: 1,
-        height: 1024,
-        width: 1024,
-        cfgScale: 8.0,
-        seed: Math.floor(Math.random() * 1000000),
-      },
-    };
-  } else {
-    // Claude models payload
-    payload = {
-      anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: options?.maxTokens || 4096,
-      messages: formattedMessages,
-      temperature: options?.temperature ?? 0.7,
-      top_p: options?.topP ?? 0.9,
-    };
-  }
+  // Format: Claude (Anthropic)
+  if (modelId.startsWith('claude')) {
+    const command = new InvokeModelCommand({
+      modelId: model.bedrockId,
+      body: JSON.stringify({
+        anthropic_version: 'bedrock-2023-05-31',
+        max_tokens: 4096,
+        messages: messages.map(m => ({
+          role: m.role,
+          content: m.content
+        })),
+        temperature: 0.7,
+      }),
+      contentType: 'application/json',
+    });
 
-  const command = new InvokeModelCommand({
-    modelId,
-    body: JSON.stringify(payload),
-    contentType: 'application/json',
-    accept: 'application/json',
-  });
-
-  try {
     const response = await client.send(command);
-    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+    const body = JSON.parse(new TextDecoder().decode(response.body));
     
-    // Handle different response formats
-    if (modelId.includes('nova-reels')) {
-      // Nova returns images in different format
-      return {
-        content: '[Generated Image/Video]',
-        artifacts: responseBody.images?.map((img: any) => img.base64) || [],
-      };
-    }
+    const inputTokens = body.usage?.input_tokens || 0;
+    const outputTokens = body.usage?.output_tokens || 0;
     
-    // Claude response format
     return {
-      content: responseBody.content?.[0]?.text || responseBody.completion || '',
-      artifacts: [],
+      content: body.content?.[0]?.text || '',
+      inputTokens,
+      outputTokens,
+      costUSD: (inputTokens / 1000) * model.inputPricePer1K + (outputTokens / 1000) * model.outputPricePer1K,
     };
-  } catch (error) {
-    console.error('Bedrock error:', error);
-    throw error;
   }
+  
+  // Format: DeepSeek (OpenAI compatible)
+  else if (modelId === 'deepseek-r1') {
+    const command = new InvokeModelWithResponseStreamCommand({
+      modelId: model.bedrockId, // ARN inference profile
+      body: JSON.stringify({
+        messages: messages.map(m => ({
+          role: m.role,
+          content: m.content
+        })),
+        max_tokens: 4096,
+        temperature: 0.7,
+        stream: true
+      }),
+      contentType: 'application/json',
+    });
+
+    // Untuk non-streaming response, kita gunakan invoke biasa atau handle stream
+    // Ini versi simplified - nanti kita handle streaming di API route
+    const response = await client.send(command as any);
+    const body = JSON.parse(new TextDecoder().decode(response.body));
+    
+    return {
+      content: body.choices?.[0]?.message?.content || '',
+      inputTokens: body.usage?.prompt_tokens || 0,
+      outputTokens: body.usage?.completion_tokens || 0,
+      costUSD: (body.usage?.prompt_tokens / 1000) * 0.5 + (body.usage?.completion_tokens / 1000) * 2.0,
+    };
+  }
+
+  throw new Error('Unsupported model');
 }
 
-// Streaming support for real-time responses
-export async function* invokeModelStream(
-  messages: Message[],
-  modelId: ModelId,
-  options?: {
-    maxTokens?: number;
-    temperature?: number;
-  }
-) {
-  const formattedMessages = messages.map(msg => ({
-    role: msg.role,
-    content: [{ type: 'text', text: msg.content }],
-  }));
-
-  const payload = {
-    anthropic_version: 'bedrock-2023-05-31',
-    max_tokens: options?.maxTokens || 4096,
-    messages: formattedMessages,
-    temperature: options?.temperature ?? 0.7,
-  };
-
+// Streaming khusus DeepSeek
+export async function* streamDeepSeek(messages: Message[]) {
+  const model = MODELS['deepseek-r1'];
+  
   const command = new InvokeModelWithResponseStreamCommand({
-    modelId,
-    body: JSON.stringify(payload),
+    modelId: model.bedrockId,
+    body: JSON.stringify({
+      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      max_tokens: 4096,
+      temperature: 0.7,
+    }),
     contentType: 'application/json',
-    accept: 'application/json',
   });
 
   const response = await client.send(command);
+  const reader = response.body?.getReader();
   
-  for await (const chunk of response.body || []) {
-    const decoded = new TextDecoder().decode(chunk.chunk?.bytes);
-    try {
-      const parsed = JSON.parse(decoded);
-      const text = parsed.content?.[0]?.text || parsed.delta?.text || '';
-      if (text) yield text;
-    } catch (e) {
-      // Ignore parse errors for incomplete chunks
+  if (!reader) throw new Error('No stream reader');
+
+  let inputTokens = 0;
+  let outputTokens = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = new TextDecoder().decode(value);
+      const lines = chunk.split('\n').filter(line => line.trim());
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+          
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content || '';
+            if (content) yield content;
+            
+            if (parsed.usage) {
+              inputTokens = parsed.usage.prompt_tokens || inputTokens;
+              outputTokens = parsed.usage.completion_tokens || outputTokens;
+            }
+          } catch (e) {
+            // skip malformed
+          }
+        }
+      }
     }
+  } finally {
+    reader.releaseLock();
   }
+
+  return { inputTokens, outputTokens };
 }
