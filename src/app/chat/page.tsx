@@ -1,13 +1,13 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { createClient } from '@/lib/supabase/server';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { ChatContainer } from '@/components/chat/ChatContainer';
 
 export default async function ChatPage() {
-  const supabase = createClient();
+  const supabase = createServerComponentClient({ cookies });
   
   const {
     data: { session },
