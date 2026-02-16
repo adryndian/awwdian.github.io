@@ -210,9 +210,10 @@ export function ChatContainer({ userId }: ChatContainerProps) {
           <div className="flex items-center gap-4">
           
             <ModelSelector 
-  value={selectedModel}
-  onChange={setSelectedModel}
+  model={selectedModel}
+  onModelChange={setSelectedModel}
 />
+
 
 
           </div>
