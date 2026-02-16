@@ -17,14 +17,14 @@ export const createClient = cache(() => {
           try {
             cookieStore.set({ name, value, ...options });
           } catch (error) {
-            // Middleware/SSR case
+            // Handle middleware/SSR cases
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: '', ...options });
           } catch (error) {
-            // Middleware/SSR case
+            // Handle middleware/SSR cases
           }
         },
       },

@@ -1,7 +1,6 @@
 'use client';
 
 import { createBrowserClient } from '@supabase/ssr';
-import { Database } from '@/types/supabase'; // Jika ada, kalau tidak hapus
 
 // Client-side auth menggunakan @supabase/ssr
 export function createClient() {
