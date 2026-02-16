@@ -160,7 +160,7 @@ export function Sidebar({
                       </p>
                       <div className="flex items-center gap-1 text-xs text-white/40 mt-1">
                         <Clock className="w-3 h-3" />
-                        {formatDistanceToNow(new Date(chat.updated_at), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(chat.updatedAt), { addSuffix: true })}
                       </div>
                     </div>
                     <button
