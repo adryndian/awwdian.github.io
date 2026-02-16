@@ -1,7 +1,5 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  output: 'standalone',
-  // HAPUS experimental.serverActions
-};
+const nextConfig = {};
+
 
 module.exports = nextConfig;
