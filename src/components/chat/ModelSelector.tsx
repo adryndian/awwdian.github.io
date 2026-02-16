@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Sparkles, Image as ImageIcon, Video, Zap } from 'lucide-react';
 import { GlassCard } from '../ui/GlassCard';
-import { MODELS, ModelConfig, ModelId } from '@/lib/models/config';
+import { MODELS, ModelConfig } from '@/lib/models/config';
+import { ModelId } from '@/types';
 
 const AVAILABLE_MODELS = Object.values(MODELS);
 
