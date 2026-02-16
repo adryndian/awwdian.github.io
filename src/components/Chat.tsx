@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import MessageList from './MessageList'
 import InputArea from './InputArea'
 import Sidebar from './Sidebar'
-import { Message, ChatSession } from '@/types/chat'
+import { Message } from '@/types/chat'
 import { v4 as uuidv4 } from 'uuid'
 
 export default function Chat() {
@@ -75,7 +75,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex h-screen bg-claude-bg text-claude-text overflow-hidden">
+    <div className="flex h-screen bg-[#1a1a1a] text-[#e0e0e0] overflow-hidden">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
@@ -86,7 +86,7 @@ export default function Chat() {
 
       {/* Sidebar */}
       <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 w-64 bg-claude-sidebar transform transition-transform duration-300
+        fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#2d2d2d] transform transition-transform duration-300
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         <Sidebar 
@@ -99,10 +99,10 @@ export default function Chat() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col h-full relative">
         {/* Mobile Header */}
-        <div className="lg:hidden flex items-center p-4 bg-claude-sidebar border-b border-claude-border">
+        <div className="lg:hidden flex items-center p-4 bg-[#2d2d2d] border-b border-[#4d4d4d]">
           <button 
             onClick={() => setSidebarOpen(true)}
-            className="p-2 hover:bg-claude-input rounded-lg transition-colors"
+            className="p-2 hover:bg-[#3d3d3d] rounded-lg transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -114,7 +114,7 @@ export default function Chat() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-claude-muted">
+            <div className="flex flex-col items-center justify-center h-full text-[#a0a0a0]">
               <h1 className="text-3xl font-bold mb-2">Claude</h1>
               <p>How can I help you today?</p>
             </div>
@@ -125,7 +125,7 @@ export default function Chat() {
         </div>
 
         {/* Input Area */}
-        <div className="p-4 bg-claude-bg border-t border-claude-border">
+        <div className="p-4 bg-[#1a1a1a] border-t border-[#4d4d4d]">
           <InputArea 
             value={input}
             onChange={setInput}
