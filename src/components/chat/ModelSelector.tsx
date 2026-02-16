@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, Zap, Brain, Cpu } from 'lucide-react';  // Ganti Bolt dengan Cpu
+import { ChevronDown, Zap, Brain, Cpu } from 'lucide-react'; // Ganti Bolt dengan Cpu
 import { ModelId } from '@/types';
 import { MODELS } from '@/lib/models/config';
 
@@ -10,10 +10,11 @@ interface ModelSelectorProps {
   onSelect: (model: ModelId) => void;
 }
 
+// Ganti Bolt dengan Cpu untuk deepseek-r1
 const modelIcons = {
   'claude-sonnet-4-5': Zap,
   'claude-opus-4-6': Brain,
-  'deepseek-r1': Cpu,  // Ganti Bolt dengan Cpu
+  'deepseek-r1': Cpu, // WAS: Bolt
 };
 
 export function ModelSelector({ selected, onSelect }: ModelSelectorProps) {
