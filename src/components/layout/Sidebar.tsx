@@ -39,7 +39,7 @@ export function Sidebar({
     try {
       const { error } = await supabase.from('chats').delete().eq('id', chatId);
       if (!error) {
-        window.location.reload(); // Simple refresh to update list
+        window.location.reload();
       }
     } catch (error) {
       console.error('Failed to delete:', error);
@@ -56,7 +56,6 @@ export function Sidebar({
 
   return (
     <>
-      {/* Mobile toggle */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 rounded-lg"
@@ -69,7 +68,6 @@ export function Sidebar({
         fixed lg:static inset-y-0 left-0 z-40 w-80 bg-gray-900 border-r border-white/10 
         flex flex-col transition-transform duration-300 ease-in-out
       `}>
-        {/* Header */}
         <div className="p-4 border-b border-white/10">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-white">Chats</h2>
@@ -82,7 +80,6 @@ export function Sidebar({
             </button>
           </div>
 
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -95,7 +92,6 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Chat List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {isLoading ? (
             <div className="flex justify-center p-4">
@@ -143,7 +139,6 @@ export function Sidebar({
           )}
         </div>
 
-        {/* Footer */}
         <div className="p-4 border-t border-white/10">
           <button
             onClick={handleSignOut}

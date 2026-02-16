@@ -1,21 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, Zap, Brain, Bolt } from 'lucide-react';
+import { ChevronDown, Zap, Brain, Cpu } from 'lucide-react';  // Ganti Bolt dengan Cpu
 import { ModelId } from '@/types';
 import { MODELS } from '@/lib/models/config';
 
-// Interface yang sesuai dengan pemanggilan di ChatContainer
 interface ModelSelectorProps {
   selected: ModelId;
   onSelect: (model: ModelId) => void;
 }
 
-// Mapping icon untuk setiap model
 const modelIcons = {
   'claude-sonnet-4-5': Zap,
   'claude-opus-4-6': Brain,
-  'deepseek-r1': Bolt,
+  'deepseek-r1': Cpu,  // Ganti Bolt dengan Cpu
 };
 
 export function ModelSelector({ selected, onSelect }: ModelSelectorProps) {

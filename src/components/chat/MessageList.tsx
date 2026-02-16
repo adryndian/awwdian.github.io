@@ -1,88 +1,107 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { User, Bot, FileText } from 'lucide-react';
-import { GlassCard } from '../ui/GlassCard';
 import { Message } from '@/types';
-import { MODELS } from '@/lib/models/config';
-import { cn } from '@/lib/utils';
+import { Bot, User } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface MessageListProps {
   messages: Message[];
-  isStreaming?: boolean;
+  isLoading?: boolean;  // Opsional dengan tanda ?
 }
 
-export function MessageList({ messages, isStreaming }: MessageListProps) {
-  if (messages.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-white/40 space-y-4">
-        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#007AFF] to-[#5856D6] flex items-center justify-center shadow-2xl">
-          <Bot className="w-10 h-10 text-white" />
-        </div>
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">How can I help you today?</h2>
-          <p className="text-white/60">Start a conversation or upload files to analyze</p>
-        </div>
-      </div>
-    );
-  }
-
+export function MessageList({ messages, isLoading }: MessageListProps) {
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-20">
-      {messages.map((message, index) => {
-        const isUser = message.role === 'user';
-        const model = message.model ? MODELS[message.model] : null;
-        
-        return (
-          <motion.div
-            key={message.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-            className={cn('flex gap-4', isUser ? 'flex-row-reverse' : 'flex-row')}
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {messages.length === 0 && !isLoading && (
+        <div className="flex flex-col items-center justify-center h-full text-white/40">
+          <Bot className="w-12 h-12 mb-4 opacity-50" />
+          <p className="text-lg font-medium">Mulai percakapan baru</p>
+          <p className="text-sm">Ketik pesan atau upload file untuk memulai</p>
+        </div>
+      )}
+
+      {messages.map((message, index) => (
+        <div
+          key={message.id}
+          className={`flex gap-3 ${
+            message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
+          }`}
+        >
+          {/* Avatar */}
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              message.role === 'user' ? 'bg-blue-600' : 'bg-gray-700'
+            }`}
           >
-            <div className={cn(
-              'w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-lg',
-              isUser ? 'bg-[#007AFF]' : 'bg-gradient-to-br from-[#5856D6] to-[#AF52DE]'
-            )}>
-              {isUser ? <User className="w-5 h-5 text-white" /> : <Bot className="w-5 h-5 text-white" />}
-            </div>
+            {message.role === 'user' ? (
+              <User className="w-5 h-5 text-white" />
+            ) : (
+              <Bot className="w-5 h-5 text-white" />
+            )}
+          </div>
 
-            <div className={cn('flex-1 max-w-[80%]', isUser ? 'items-end' : 'items-start')}>
-              <GlassCard className={cn('relative overflow-hidden p-4', isUser ? 'bg-[#007AFF]/20' : 'bg-white/10')}>
-                {model && !isUser && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/20 text-[10px] font-medium text-white/80">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: model.color }} />
-                    {model.name}
-                  </div>
-                )}
-
+          {/* Content */}
+          <div
+            className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+              message.role === 'user'
+                ? 'bg-blue-600 text-white rounded-br-none'
+                : 'bg-gray-800 text-white rounded-bl-none'
+            }`}
+          >
+            {message.isStreaming && !message.content ? (
+              <div className="flex items-center gap-2 text-white/60">
+                <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" />
+                <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce delay-100" />
+                <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce delay-200" />
+              </div>
+            ) : (
+              <>
                 {message.files && message.files.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
+                  <div className="mb-2 space-y-1">
                     {message.files.map((file, idx) => (
-                      <div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/10 text-xs text-white/80">
-                        <FileText className="w-3 h-3" />
-                        <span className="truncate max-w-[100px]">{file.name}</span>
+                      <div
+                        key={idx}
+                        className="text-xs bg-black/20 rounded px-2 py-1 flex items-center gap-1"
+                      >
+                        <span className="truncate">{file.name}</span>
                       </div>
                     ))}
                   </div>
                 )}
+                
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {message.content}
+                  </ReactMarkdown>
+                </div>
 
-                <div className="text-white/90 whitespace-pre-wrap">{message.content}</div>
-
-                {isStreaming && isUser === false && index === messages.length - 1 && (
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: [0, 1, 0] }}
-                    transition={{ duration: 0.8, repeat: Infinity }}
-                    className="inline-block w-2 h-4 bg-[#007AFF] ml-1 align-middle"
-                  />
+                {message.tokens && (
+                  <div className="mt-2 text-xs text-white/40 flex items-center gap-2">
+                    <span>{message.tokens.input} in / {message.tokens.output} out</span>
+                    {message.cost && (
+                      <span className="text-green-400">${message.cost.toFixed(4)}</span>
+                    )}
+                  </div>
                 )}
-              </GlassCard>
-            </div>
-          </motion.div>
-        );
-      })}
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
+        <div className="flex gap-3">
+          <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+            <Bot className="w-5 h-5 text-white" />
+          </div>
+          <div className="bg-gray-800 rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-2">
+            <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" />
+            <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce delay-100" />
+            <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce delay-200" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
