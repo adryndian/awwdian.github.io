@@ -21,11 +21,11 @@ export function ModelSelector({ selectedModel, onSelectModel }: ModelSelectorPro
   
   const selected = AVAILABLE_MODELS.find(m => m.id === selectedModel) || AVAILABLE_MODELS[0];
 
-  const getIcon = (type: string) => {
-    switch (type) {
+  const getIcon = (icon: string) => {
+    switch (icon) {
       case 'video': return <Video className="w-4 h-4" />;
       case 'image': return <ImageIcon className="w-4 h-4" />;
-      case 'multimodal': return <Sparkles className="w-4 h-4" />;
+      case 'brain': return <Sparkles className="w-4 h-4" />;
       default: return <Zap className="w-4 h-4" />;
     }
   };
@@ -84,12 +84,12 @@ export function ModelSelector({ selectedModel, onSelectModel }: ModelSelectorPro
                       'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
                       model.color
                     )}>
-                      {getIcon(model.type)}
+                      {getIcon(model.icon)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-white">{model.name}</div>
                       <div className="text-sm text-white/60 truncate">{model.description}</div>
-                      <div className="text-xs text-white/40 mt-1">{model.costPer1KTokens}</div>
+                      <div className="text-xs text-white/40 mt-1">${model.inputPricePer1K}/1K in · ${model.outputPricePer1K}/1K out</div>
                     </div>
                     {selectedModel === model.id && (
                       <div className="w-2 h-2 rounded-full bg-[#007AFF] self-center" />
