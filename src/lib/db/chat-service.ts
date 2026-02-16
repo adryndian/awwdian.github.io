@@ -1,7 +1,9 @@
-import { supabaseClient } from '../auth/supabase';
+import { createClient } from '@/lib/supabase/server';
 import { ChatSession, Message } from '@/types';
+import { cache } from 'react';
 
-function mapChat(raw: Record<string, unknown>): ChatSession {
+// Helper untuk mapping dengan tipe aman
+function mapChat(raw: any): ChatSession {
   return {
     id: raw.id as string,
     title: raw.title as string,
@@ -12,51 +14,88 @@ function mapChat(raw: Record<string, unknown>): ChatSession {
   };
 }
 
-export async function getUserChats(userId: string): Promise<ChatSession[]> {
-  const { data, error } = await supabaseClient
+function mapMessage(raw: any): Message {
+  return {
+    id: raw.id,
+    role: raw.role,
+    content: raw.content,
+    timestamp: new Date(raw.created_at),
+    model: raw.model,
+    tokens: raw.input_tokens ? { 
+      input: raw.input_tokens, 
+      output: raw.output_tokens 
+    } : undefined,
+    cost: raw.cost_usd,
+    files: raw.files || [],
+  };
+}
+
+export const getUserChats = cache(async (userId: string): Promise<ChatSession[]> => {
+  const supabase = createClient();
+  
+  const { data, error } = await supabase
     .from('chats')
     .select('*')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false });
 
-  if (error) throw error;
-  return (data || []).map(mapChat);
-}
+  if (error) {
+    console.error('Error fetching chats:', error);
+    throw new Error('Failed to fetch chats');
+  }
 
-export async function getChatMessages(chatId: string): Promise<Message[]> {
-  const { data, error } = await supabaseClient
+  return (data || []).map(mapChat);
+});
+
+export const getChatMessages = cache(async (chatId: string): Promise<Message[]> => {
+  const supabase = createClient();
+  
+  const { data, error } = await supabase
     .from('messages')
     .select('*')
     .eq('chat_id', chatId)
     .order('created_at', { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching messages:', error);
+    throw new Error('Failed to fetch messages');
+  }
 
-  return (data || []).map(m => ({
-    id: m.id,
-    role: m.role,
-    content: m.content,
-    timestamp: new Date(m.created_at),
-    model: m.model,
-    tokens: m.input_tokens ? { input: m.input_tokens, output: m.output_tokens } : undefined,
-    cost: m.cost_usd,
-    files: m.files || [],
-  }));
-}
+  return (data || []).map(mapMessage);
+});
 
-export async function createChat(userId: string, title: string, model: string): Promise<string> {
-  const { data, error } = await supabaseClient
+export async function createChat(
+  userId: string, 
+  title: string, 
+  model: string
+): Promise<string> {
+  const supabase = createClient();
+  
+  const { data, error } = await supabase
     .from('chats')
-    .insert({ user_id: userId, title, default_model: model })
+    .insert({ 
+      user_id: userId, 
+      title, 
+      default_model: model 
+    })
     .select('id')
     .single();
 
-  if (error) throw error;
+  if (error || !data) {
+    console.error('Error creating chat:', error);
+    throw new Error('Failed to create chat');
+  }
+  
   return data.id;
 }
 
-export async function saveMessage(message: Partial<Message>, chatId: string) {
-  const { error } = await supabaseClient
+export async function saveMessage(
+  message: Partial<Message>, 
+  chatId: string
+): Promise<void> {
+  const supabase = createClient();
+  
+  const { error } = await supabase
     .from('messages')
     .insert({
       chat_id: chatId,
@@ -69,23 +108,36 @@ export async function saveMessage(message: Partial<Message>, chatId: string) {
       files: message.files || [],
     });
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error saving message:', error);
+    throw new Error('Failed to save message');
+  }
 }
 
-export async function updateChatTitle(chatId: string, title: string) {
-  const { error } = await supabaseClient
+export async function updateChatTitle(chatId: string, title: string): Promise<void> {
+  const supabase = createClient();
+  
+  const { error } = await supabase
     .from('chats')
-    .update({ title })
+    .update({ title, updated_at: new Date().toISOString() })
     .eq('id', chatId);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error updating title:', error);
+    throw new Error('Failed to update title');
+  }
 }
 
-export async function deleteChat(chatId: string) {
-  const { error } = await supabaseClient
+export async function deleteChat(chatId: string): Promise<void> {
+  const supabase = createClient();
+  
+  const { error } = await supabase
     .from('chats')
     .delete()
     .eq('id', chatId);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error deleting chat:', error);
+    throw new Error('Failed to delete chat');
+  }
 }
