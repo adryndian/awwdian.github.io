@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';  // ← TAMBAHKAN BARIS INI DI PALING ATAS
+export const revalidate = 0;             // ← Opsional: pastikan tidak di-cache
+
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -20,3 +23,4 @@ export default async function ChatPage() {
     </div>
   );
 }
+
