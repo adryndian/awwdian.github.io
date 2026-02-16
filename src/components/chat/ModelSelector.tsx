@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Sparkles, Image as ImageIcon, Video, Zap } from 'lucide-react';
 import { GlassCard } from './GlassCard';
-import { AVAILABLE_MODELS, ModelConfig, ModelId } from '@/lib/models';
+import { MODELS, ModelConfig, ModelId } from '@/lib/models/config'; // ← @/lib/models
+
 import { cn } from '@/lib/utils';
 
 interface ModelSelectorProps {

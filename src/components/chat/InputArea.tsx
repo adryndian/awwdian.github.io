@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Paperclip } from 'lucide-react';
-import { FileUpload } from './FileUpload';
+import { FileUpload } from '../upload/FileUpload'; 
 
 interface UploadedFile {
   id: string;
