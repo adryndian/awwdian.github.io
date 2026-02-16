@@ -209,9 +209,10 @@ export function ChatContainer({ userId }: ChatContainerProps) {
         <header className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-black/50 backdrop-blur-sm">
           <div className="flex items-center gap-4">
             <ModelSelector 
-              selected={selectedModel} 
-              onSelect={setSelectedModel} 
-            />
+  selected={selectedModel}
+  onSelect={setSelectedModel}
+/>
+
           </div>
           
           <div className="flex items-center gap-4">
