@@ -1,98 +1,49 @@
-export type ModelId = 
-  | 'anthropic.claude-opus-4-6-v1'
-  | 'anthropic.claude-sonnet-4-6-v1'
-  | 'amazon.nova-reels-v1:0'
-  | 'anthropic.claude-3-sonnet-20240229-v1:0'
-  | 'anthropic.claude-3-opus-20240229-v1:0';
+import { ModelConfig, ModelId } from '@/types';
 
-export interface ModelConfig {
-  id: ModelId;
-  name: string;
-  description: string;
-  type: 'text' | 'image' | 'video' | 'multimodal';
-  maxTokens: number;
-  supportsFileUpload: boolean;
-  supportsImageUpload: boolean;
-  costPer1KTokens: string;
-  color: string;
-}
-
-export const AVAILABLE_MODELS: ModelConfig[] = [
-  {
-    id: 'anthropic.claude-opus-4-6-v1',
+export const MODELS: Record<ModelId, ModelConfig> = {
+  'claude-sonnet-4-5': {
+    id: 'claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
+    description: 'Balanced performance & speed',
+    bedrockId: 'anthropic.claude-sonnet-4-5-v1',
+    region: 'us-west-2',
+    supportsStreaming: false,
+    inputPricePer1K: 3.0,
+    outputPricePer1K: 15.0,
+    color: '#3B82F6', // Blue
+    icon: 'zap',
+  },
+  'claude-opus-4-6': {
+    id: 'claude-opus-4-6',
     name: 'Claude Opus 4.6',
-    description: 'Most powerful model for complex tasks',
-    type: 'multimodal',
-    maxTokens: 128000,
-    supportsFileUpload: true,
-    supportsImageUpload: true,
-    costPer1KTokens: '$15.00 / $75.00',
-    color: 'bg-purple-500',
+    description: 'Most powerful reasoning',
+    bedrockId: 'anthropic.claude-opus-4-6-v1',
+    region: 'us-west-2',
+    supportsStreaming: false,
+    inputPricePer1K: 15.0,
+    outputPricePer1K: 75.0,
+    color: '#8B5CF6', // Purple
+    icon: 'brain',
   },
-  {
-    id: 'anthropic.claude-sonnet-4-6-v1',
-    name: 'Claude Sonnet 4.6',
-    description: 'Balanced performance and speed',
-    type: 'multimodal',
-    maxTokens: 128000,
-    supportsFileUpload: true,
-    supportsImageUpload: true,
-    costPer1KTokens: '$3.00 / $15.00',
-    color: 'bg-blue-500',
+  'deepseek-r1': {
+    id: 'deepseek-r1',
+    name: 'DeepSeek R1',
+    description: 'Fast & cost-effective streaming',
+    bedrockId: 'arn:aws:bedrock:us-west-2:903732996256:inference-profile/us.deepseek.r1-v1:0',
+    region: 'us-west-2',
+    supportsStreaming: true,
+    inputPricePer1K: 0.5,
+    outputPricePer1K: 2.0,
+    color: '#10B981', // Emerald
+    icon: 'bolt',
   },
-  {
-    id: 'amazon.nova-reels-v1:0',
-    name: 'Amazon Nova Reels',
-    description: 'Generate images and videos',
-    type: 'video',
-    maxTokens: 16000,
-    supportsFileUpload: true,
-    supportsImageUpload: true,
-    costPer1KTokens: '$0.80 / $3.20',
-    color: 'bg-orange-500',
-  },
-  {
-    id: 'anthropic.claude-3-opus-20240229-v1:0',
-    name: 'Claude 3 Opus',
-    description: 'Previous generation Opus',
-    type: 'text',
-    maxTokens: 4096,
-    supportsFileUpload: true,
-    supportsImageUpload: true,
-    costPer1KTokens: '$15.00 / $75.00',
-    color: 'bg-indigo-500',
-  },
-  {
-    id: 'anthropic.claude-3-sonnet-20240229-v1:0',
-    name: 'Claude 3 Sonnet',
-    description: 'Previous generation Sonnet',
-    type: 'text',
-    maxTokens: 4096,
-    supportsFileUpload: true,
-    supportsImageUpload: true,
-    costPer1KTokens: '$3.00 / $15.00',
-    color: 'bg-cyan-500',
-  },
-];
+};
 
-export const DEFAULT_MODEL: ModelId = 'anthropic.claude-sonnet-4-6-v1';
+export const DEFAULT_MODEL: ModelId = 'claude-sonnet-4-5';
 
-export function getModelById(id: ModelId): ModelConfig | undefined {
-  return AVAILABLE_MODELS.find(model => model.id === id);
+export function calculateCost(modelId: ModelId, inputTokens: number, outputTokens: number): number {
+  const model = MODELS[modelId];
+  const inputCost = (inputTokens / 1000) * model.inputPricePer1K;
+  const outputCost = (outputTokens / 1000) * model.outputPricePer1K;
+  return Number((inputCost + outputCost).toFixed(6));
 }
-
-export function supportsFileUpload(modelId: ModelId): boolean {
-  const model = getModelById(modelId);
-  return model?.supportsFileUpload ?? false;
-}
-
-export function supportsImageUpload(modelId: ModelId): boolean {
-  const model = getModelById(modelId);
-  return model?.supportsImageUpload ?? false;
-}
-export const MODELS = {
-  'claude-opus-4-6': 'anthropic.claude-opus-4-6-v1',
-  'claude-sonnet-4-6': 'anthropic.claude-sonnet-4-6-v1', 
-  'nova-reels': 'amazon.nova-reels-v1:0'
-} as const;
-
