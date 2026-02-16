@@ -1,11 +1,10 @@
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 
-// Pastikan environment variables tersedia
 if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
-  throw new Error('AWS credentials are not set in environment variables');
+  throw new Error('AWS credentials not set in environment variables');
 }
 
-export const client = new BedrockRuntimeClient({
+export const bedrockClient = new BedrockRuntimeClient({
   region: process.env.AWS_REGION || 'us-west-2',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
