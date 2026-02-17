@@ -148,10 +148,13 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          code({ node, inline, className, children, ...props }) {
+                          code(props) {
+                            const { node, className, children, ...rest } = props;
                             const match = /language-(\w+)/.exec(className || '');
                             const value = String(children).replace(/\n$/, '');
-                            return !inline && match ? (
+                            // Check if it's an inline code or block code
+                            const isInline = !className && !value.includes('\n');
+                            return !isInline && match ? (
                               <CodeBlock language={match[1]} value={value} />
                             ) : (
                               <CodeBlock inline value={value} />
