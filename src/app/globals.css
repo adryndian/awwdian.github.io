@@ -8,6 +8,14 @@
 :root {
   --shadow-glass:    0 8px 32px rgba(31, 38, 135, 0.25);
   --shadow-elevated: 0 12px 48px rgba(31, 38, 135, 0.40);
+
+  /*
+   * FIX: Input box height untuk scroll-padding compensation.
+   * Nilai ini dipakai untuk memberitahu scroll container berapa
+   * ruang yang perlu disisakan di bawah agar tidak tertutup InputArea.
+   * InputArea: pb-3 + inner ~60px + hint ~20px ≈ 100px
+   */
+  --input-area-height: 110px;
 }
 
 /* ─── Reset ──────────────────────────────────────────────────────────────── */
@@ -16,23 +24,33 @@
 /* ─── Base ───────────────────────────────────────────────────────────────── */
 html {
   height: 100%;
+  /*
+   * FIX: Cegah horizontal scroll di level html.
+   * Ini fallback terkuat untuk mencegah page-level overflow
+   * yang menyebabkan browser zoom otomatis di mobile.
+   */
+  overflow-x: hidden;
 }
 
 body {
   height: 100%;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  /* Deep purple gradient — the canvas behind all glass layers */
   background: linear-gradient(135deg, #1e1b4b 0%, #312e81 35%, #4c1d95 65%, #5b21b6 100%);
   background-attachment: fixed;
   color: #ffffff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
+  /*
+   * FIX: Cegah horizontal overflow di body level.
+   * Ini mencegah SyntaxHighlighter atau elemen lebar lainnya
+   * menyebabkan page-level zoom di iOS Safari.
+   */
+  max-width: 100vw;
 }
 
 /* ─── Glassmorphism Utilities ────────────────────────────────────────────── */
 
-/* Sidebar / header panel — darkest glass layer */
 .glass-dark {
   background: rgba(15, 12, 41, 0.55);
   backdrop-filter: blur(24px) saturate(180%);
@@ -40,7 +58,6 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Message bubbles / floating cards */
 .glass-card {
   background: rgba(255, 255, 255, 0.10);
   backdrop-filter: blur(20px) saturate(160%);
@@ -50,13 +67,11 @@ body {
   box-shadow: var(--shadow-glass);
 }
 
-/* Hover state for glass cards */
 .glass-card:hover {
   background: rgba(255, 255, 255, 0.13);
   border-color: rgba(255, 255, 255, 0.20);
 }
 
-/* Input fields / small pills */
 .glass-input {
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(12px);
@@ -73,7 +88,6 @@ body {
   outline: none;
 }
 
-/* Subtle glass for misc elements */
 .glass {
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px) saturate(160%);
@@ -144,6 +158,16 @@ body {
   max-width: 100%;
   overflow-wrap: break-word;
   word-wrap: break-word;
+  /*
+   * FIX: Tambahkan word-break untuk teks panjang tanpa spasi
+   * (URL, hash, string panjang) yang bisa overflow keluar bubble.
+   */
+  word-break: break-word;
+  /*
+   * FIX: min-width: 0 untuk flex/grid context.
+   * Tanpa ini, prose container bisa memaksa parent melebar.
+   */
+  min-width: 0;
 }
 .prose-glass p { margin-bottom: 0.8em; }
 .prose-glass p:last-child { margin-bottom: 0; }
@@ -168,6 +192,7 @@ body {
   color: #c4b5fd;
   text-decoration: underline;
   text-underline-offset: 2px;
+  word-break: break-all; /* FIX: URL panjang tidak overflow */
 }
 .prose-glass strong { font-weight: 600; color: #ffffff; }
 .prose-glass em { opacity: 0.85; }
@@ -184,24 +209,60 @@ body {
   border-top: 1px solid rgba(255, 255, 255, 0.15);
   margin: 1.2em 0;
 }
+
+/*
+ * FIX: Table overflow — tabel lebar harus scroll, bukan overflow ke luar.
+ */
 .prose-glass table {
-  width: 100%;
+  /*
+   * SEBELUM: width: 100% — table bisa melebihi parent jika konten lebar
+   * SESUDAH: display block + overflow-x-auto — table scroll jika terlalu lebar
+   */
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
   border-collapse: collapse;
   margin: 0.8em 0;
   font-size: 0.9em;
   border-radius: 10px;
-  overflow: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 .prose-glass th,
 .prose-glass td {
   padding: 0.55em 0.8em;
   border: 1px solid rgba(255, 255, 255, 0.12);
   text-align: left;
+  white-space: nowrap; /* Biarkan table cell tidak wrap agar table lebih rapi */
 }
 .prose-glass th {
   background: rgba(255, 255, 255, 0.10);
   font-weight: 600;
   color: #fff;
+}
+
+/*
+ * ─── FIX: pre/code global fallback ──────────────────────────────────────
+ * Ini backup untuk elemen pre/code yang di-render di luar CodeBlock component.
+ * Memastikan tidak ada pre yang bisa overflow ke luar container.
+ */
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+code {
+  word-break: break-word;
+}
+
+/*
+ * ─── FIX: Scroll padding untuk MessageList ────────────────────────────
+ * Ini memberitahu browser bahwa saat scroll-into-view, harus ada clearance
+ * sebesar --input-area-height di bawah viewport scroll target.
+ * Berguna sebagai fallback jika scrollIntoView masih dipakai.
+ */
+.message-scroll-container {
+  scroll-padding-bottom: var(--input-area-height);
 }
 
 /* ─── Transitions ────────────────────────────────────────────────────────── */
@@ -217,4 +278,21 @@ body {
   outline: 2px solid rgba(167, 139, 250, 0.7);
   outline-offset: 2px;
   border-radius: 6px;
+}
+
+/*
+ * ─── FIX: Prevent iOS input zoom globally ───────────────────────────────
+ * Semua input/textarea/select di aplikasi ini harus font-size >= 16px
+ * untuk mencegah iOS Safari auto-zoom saat focus.
+ *
+ * Kita set di CSS sebagai safety net, tapi InputArea.tsx juga sudah
+ * di-fix langsung dengan inline style fontSize: '16px'.
+ */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+select,
+textarea {
+  font-size: 16px !important; /* Cegah iOS auto-zoom */
 }

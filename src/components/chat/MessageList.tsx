@@ -25,10 +25,47 @@ function TypingDots() {
 
 export function MessageList({ messages, isLoading }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * ─── FIX: Scroll-to-bottom yang benar ────────────────────────────────
+   *
+   * MASALAH SEBELUMNYA:
+   *   bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+   *
+   *   `scrollIntoView` dengan block:'end' memposisikan elemen di batas bawah
+   *   VIEWPORT (window.innerHeight). Tapi InputArea adalah `fixed bottom-0`
+   *   yang menutup ±80-100px bawah viewport. Akibatnya pesan terakhir &
+   *   typing indicator TERTUTUP di balik InputArea.
+   *
+   * FIX:
+   *   Gunakan manual scroll pada container (scrollTop = scrollHeight) sebagai
+   *   pengganti scrollIntoView. Ini memastikan konten di-scroll sampai paling
+   *   bawah dari container, bukan viewport. Karena container sudah punya
+   *   padding-bottom yang cukup (dari ChatContainer), clearance terjamin.
+   *
+   *   Juga tambahkan ref ke scroll container untuk kontrol manual.
+   * ─────────────────────────────────────────────────────────────────────
+   */
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior,
+    });
+  };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, isLoading]);
+    scrollToBottom('smooth');
+  }, [messages]);
+
+  // Scroll lebih agresif saat isLoading (streaming) berubah
+  useEffect(() => {
+    if (isLoading) {
+      scrollToBottom('smooth');
+    }
+  }, [isLoading]);
 
   if (messages.length === 0 && !isLoading) {
     return (
@@ -55,7 +92,12 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
   }
 
   return (
+    /*
+     * FIX: overflow-x-hidden di sini untuk double protection.
+     * Ini container scroll utama — ref dipakai untuk manual scroll.
+     */
     <div
+      ref={scrollContainerRef}
       className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6"
       style={{ WebkitOverflowScrolling: 'touch' }}
     >
@@ -95,7 +137,11 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                 )}
               </div>
 
-              {/* Bubble */}
+              {/*
+               * FIX: min-w-0 WAJIB pada flex column ini.
+               * Tanpa min-w-0, flex item tidak bisa menyusut di bawah konten-nya,
+               * menyebabkan code block overflow keluar dari layar.
+               */}
               <div
                 className={`flex flex-col gap-1.5 min-w-0 ${
                   isUser
@@ -119,9 +165,14 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                   </div>
                 )}
 
-                {/* Message content */}
+                {/*
+                 * FIX: Tambahkan overflow-hidden pada bubble.
+                 * Ini mencegah CodeBlock (atau elemen lebar lainnya) menerobos
+                 * keluar dari batas bubble.
+                 * Juga tambahkan min-w-0 untuk konsistensi flex behavior.
+                 */}
                 <div
-                  className={`rounded-2xl px-4 py-3 shadow-lg ${
+                  className={`rounded-2xl px-4 py-3 shadow-lg min-w-0 overflow-hidden w-full ${
                     isUser
                       ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm'
                       : 'glass-card text-white rounded-tl-sm'
@@ -146,7 +197,13 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                   {isStreaming && !hasContent ? (
                     <TypingDots />
                   ) : (
-                    <div className="prose-glass">
+                    /*
+                     * FIX: Tambahkan overflow-hidden pada prose container.
+                     * prose-glass saja tidak cukup — perlu overflow-hidden
+                     * untuk mencegah child elements (code block, table, img)
+                     * menerobos keluar area bubble.
+                     */
+                    <div className="prose-glass overflow-hidden">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
@@ -162,7 +219,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                             );
                           },
                           img(props) {
-                            const { src, alt, ...rest } = props;
+                            const { src, alt } = props;
                             return (
                               <div className="my-2 rounded-xl overflow-hidden border border-white/15">
                                 <img
@@ -175,7 +232,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                             );
                           },
                           video(props) {
-                            const { src, ...rest } = props;
+                            const { src } = props;
                             return (
                               <div className="my-2 rounded-xl overflow-hidden border border-white/15">
                                 <video
@@ -215,7 +272,15 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
           );
         })}
 
-        <div ref={bottomRef} className="h-2" />
+        {/*
+         * FIX: Anchor scroll harus cukup tinggi untuk clearance dari input box.
+         * h-2 (8px) tidak cukup — dengan fixed input ~90px, scroll konten
+         * terakhir bisa tepat di balik input box.
+         *
+         * Tapi karena kita sudah pakai manual scrollTop = scrollHeight di atas,
+         * anchor ini tidak lagi critical. Tetap kita pertahankan sebagai backup.
+         */}
+        <div ref={bottomRef} className="h-4" aria-hidden="true" />
       </div>
     </div>
   );

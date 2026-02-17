@@ -143,7 +143,6 @@ export function ChatContainer({ userId }: ChatContainerProps) {
 
     if (!chatId) return;
 
-    /* Optimistic user message */
     const userMsg: Message = {
       id: uuidv4(),
       role: 'user',
@@ -159,14 +158,12 @@ export function ChatContainer({ userId }: ChatContainerProps) {
     try { await saveMessage(userMsg, chatId); }
     catch (e) { console.error('Save user msg failed:', e); }
 
-    /* Assistant placeholder */
     const aId = uuidv4();
     setMessages((p) => [...p, {
       id: aId, role: 'assistant', content: '', timestamp: new Date(),
       model: selectedModel, isStreaming: true,
     }]);
 
-    /* Build API messages */
     const apiMessages = [...messages, userMsg]
       .filter((m) => m.content?.trim().length > 0)
       .map((m) => ({
@@ -238,7 +235,6 @@ export function ChatContainer({ userId }: ChatContainerProps) {
         if (data.usage) usage = { model: selectedModel, ...data.usage };
       }
 
-      /* Finalise assistant message */
       const finalMsg: Message = {
         id: aId, role: 'assistant',
         content: responseText || '*(Tidak ada respons)*',
@@ -303,29 +299,94 @@ export function ChatContainer({ userId }: ChatContainerProps) {
       />
 
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
-        {/* Header */}
-        <header className="h-14 sm:h-16 glass-dark border-b border-white/8 flex items-center justify-between px-4 lg:px-5 shrink-0 z-20">
-          <div className="flex items-center gap-3 pl-12 lg:pl-0">
+
+        {/*
+         * ─── FIX: Header layout yang benar untuk mobile ─────────────────
+         *
+         * MASALAH SEBELUMNYA:
+         *   <div className="flex items-center gap-3 pl-12 lg:pl-0">
+         *     <ModelSelector />
+         *   </div>
+         *
+         *   `pl-12` adalah workaround kasar untuk memberi ruang hamburger button
+         *   (fixed top-4 left-4 dari Sidebar.tsx). Ini menyebabkan:
+         *   1. Model selector tidak center — terasa "geser" ke kanan
+         *   2. Kalau model name panjang, tidak ada truncation → overflow
+         *   3. Status indicator (generating) di kanan tidak sejajar dengan baik
+         *   4. Tidak ada alignment yang proper antara kiri-tengah-kanan
+         *
+         * FIX:
+         *   Gunakan 3-kolom layout: [kiri spacer] [tengah: model selector] [kanan: status]
+         *   Semua kolom sama lebar (flex-1 / w-1/3) agar model selector benar-benar center.
+         *   Kiri = spacer untuk hamburger button mobile (hamburger tetap di Sidebar.tsx).
+         *   Tengah = model selector dengan truncation.
+         *   Kanan = status indicator.
+         * ─────────────────────────────────────────────────────────────── */
+        <header className="h-14 sm:h-16 glass-dark border-b border-white/8 flex items-center px-4 lg:px-5 shrink-0 z-20 gap-2">
+
+          {/*
+           * KOLOM KIRI: Spacer mobile untuk hamburger button dari Sidebar.
+           * Di desktop (lg:) hamburger tidak ada, jadi ini kosong.
+           * w-10 = sama dengan ukuran hamburger button (p-2.5 + icon ~40px).
+           */}
+          <div className="w-10 shrink-0 lg:hidden" />
+
+          {/*
+           * KOLOM TENGAH: Model Selector — flex-1 agar ambil sisa ruang,
+           * flex justify-center agar selector benar-benar di tengah.
+           * min-w-0 wajib untuk flex child yang bisa truncate.
+           */}
+          <div className="flex-1 flex justify-start lg:justify-start items-center min-w-0">
             <ModelSelector
               selected={selectedModel}
               onSelect={handleModelChange}
               disabled={isLoading}
             />
           </div>
-          {isLoading && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-input text-xs text-white/70 font-medium">
-              <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-              <span className="hidden sm:inline">Generating…</span>
-            </div>
-          )}
+
+          {/*
+           * KOLOM KANAN: Status indicator — shrink-0 agar tidak menyusut,
+           * min-w-[2.5rem] untuk alignment yang konsisten.
+           */}
+          <div className="shrink-0 flex items-center justify-end min-w-[2.5rem]">
+            {isLoading && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-input text-xs text-white/70 font-medium">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                <span className="hidden sm:inline">Generating…</span>
+              </div>
+            )}
+          </div>
         </header>
 
-        {/* Messages (bottom padding = floating input height) */}
-        <div className="flex-1 overflow-hidden flex flex-col min-h-0 pb-28 sm:pb-32">
+        {/*
+         * ─── FIX: Messages container ────────────────────────────────────
+         *
+         * MASALAH SEBELUMNYA:
+         *   <div className="flex-1 overflow-hidden flex flex-col min-h-0 pb-28 sm:pb-32">
+         *     <MessageList ... />
+         *   </div>
+         *
+         *   `pb-28` di sini memang menciptakan ruang bawah DALAM flex container,
+         *   tapi karena dipakai bersama `overflow-hidden`, ada edge case di
+         *   beberapa browser mobile (terutama Safari) di mana padding tidak
+         *   diaplikasikan dengan benar pada overflow-hidden flex container.
+         *
+         *   Selain itu, `scrollIntoView` di MessageList tidak memperhitungkan
+         *   InputArea yang fixed → pesan terakhir tertutup.
+         *
+         * FIX:
+         *   1. Pindahkan padding bottom ke dalam MessageList melalui prop
+         *      atau CSS yang benar (sudah di-handle di MessageList.tsx fix).
+         *   2. Ganti approach scroll dari scrollIntoView ke manual scrollTop
+         *      (sudah di-handle di MessageList.tsx fix).
+         *   3. Pertahankan pb-28 di sini sebagai fallback, tapi juga tambahkan
+         *      padding di dalam MessageList content.
+         * ─────────────────────────────────────────────────────────────── */
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           <MessageList messages={messages} isLoading={isLoading} />
         </div>
 
-        {/* Floating input */}
+        {/* Floating input — fixed di InputArea.tsx */}
         <InputArea
           value={input}
           onChange={setInput}

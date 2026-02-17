@@ -80,11 +80,7 @@ export function InputArea({
 
   const handleSend = () => {
     if ((!value.trim() && pendingFiles.length === 0) || isLoading || disabled) return;
-
-    // Immediate UI feedback
     setSendingState('sending');
-
-    // Call onSend immediately without waiting
     requestAnimationFrame(() => {
       onSend(pendingFiles.length > 0 ? pendingFiles : undefined);
     });
@@ -94,9 +90,15 @@ export function InputArea({
     (value.trim().length > 0 || pendingFiles.length > 0) && !isLoading && !disabled;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 px-3 pb-3 sm:pb-4">
+    /*
+     * FIX: InputArea harus fixed bottom-0.
+     * Pastikan z-index cukup tinggi (z-30) tapi tidak menghalangi modal/dropdown.
+     * `pb-safe` untuk iPhone notch / home indicator.
+     */
+    <div className="fixed bottom-0 left-0 right-0 z-30 px-3 pb-3 sm:pb-4"
+         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
       <div className="max-w-4xl mx-auto">
-        {/* Floating container with glassmorphism */}
+        {/* Floating container */}
         <div
           {...getRootProps()}
           className={`glass-card relative transition-all duration-300 ${
@@ -151,7 +153,22 @@ export function InputArea({
               <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
-            {/* Textarea - FIXED: single element, no duplicate */}
+            {/*
+             * ─── FIX KRITIS: iOS Safari Auto-Zoom ────────────────────────────
+             * iOS Safari OTOMATIS zoom halaman ketika user tap/focus ke input
+             * yang memiliki font-size < 16px.
+             *
+             * SEBELUM (BUGGY):
+             *   className="... text-[15px] ..."
+             *   → 15px < 16px = iOS zoom
+             *
+             * SESUDAH (FIXED):
+             *   style={{ fontSize: '16px' }}
+             *   → 16px = tidak ada zoom
+             *
+             * Catatan: Tailwind class text-base = 16px juga bisa dipakai,
+             * tapi inline style lebih explicit dan tidak bisa di-override.
+             * ─────────────────────────────────────────────────────────────── */
             <textarea
               ref={textareaRef}
               value={value}
@@ -161,8 +178,12 @@ export function InputArea({
               placeholder={isLoading ? 'AI sedang mengetik...' : 'Ketik pesan...'}
               disabled={isLoading || disabled}
               rows={1}
-              style={{ maxHeight: '200px', minHeight: '40px' }}
-              className="flex-1 bg-transparent text-[15px] text-white placeholder-white/50 resize-none py-2.5 sm:py-3 focus:outline-none leading-relaxed"
+              style={{
+                maxHeight: '200px',
+                minHeight: '40px',
+                fontSize: '16px', // ← FIX: minimum 16px untuk cegah iOS auto-zoom
+              }}
+              className="flex-1 bg-transparent text-white placeholder-white/50 resize-none py-2.5 sm:py-3 focus:outline-none leading-relaxed"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -171,7 +192,7 @@ export function InputArea({
               }}
             />
 
-            {/* Send button with state animation */}
+            {/* Send button */}
             <button
               onClick={handleSend}
               disabled={!canSend}
