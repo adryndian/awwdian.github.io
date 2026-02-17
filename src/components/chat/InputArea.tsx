@@ -2,12 +2,12 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { ModelType } from "@/types";
+import type { ModelId } from "@/lib/models/config";
 
 interface InputAreaProps {
   onSendMessage: (content: string, files?: File[]) => void;
   isLoading: boolean;
-  selectedModel: ModelType;
+  selectedModel: ModelId;
 }
 
 export function InputArea({
@@ -88,11 +88,13 @@ export function InputArea({
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const modelPlaceholders: Record<ModelType, string> = {
-    claude: "Tanya Claude sesuatu...",
-    llama: "Tanya LLaMA sesuatu...",
-    deepseek: "Tanya DeepSeek sesuatu...",
+  const modelPlaceholders: Record<string, string> = {
+    'us.anthropic.claude-opus-4-6-v1': 'Tanya Claude Opus 4.6...',
+    'us.anthropic.claude-sonnet-4-0-v1': 'Tanya Claude Sonnet 4.0...',
+    'us.meta.llama4-maverick-17b-instruct-v1': 'Tanya Llama 4 Maverick...',
   };
+
+  const placeholder = modelPlaceholders[selectedModel] || 'Ketik pesan...';
 
   return (
     <div className="border-t border-white/[0.06] bg-black/20 backdrop-blur-xl">
@@ -199,7 +201,7 @@ export function InputArea({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={modelPlaceholders[selectedModel]}
+            placeholder={placeholder}
             disabled={isLoading}
             rows={1}
             className="

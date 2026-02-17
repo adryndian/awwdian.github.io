@@ -1,7 +1,8 @@
 // src/app/actions/chat.ts
 "use server";
 
-import type { ModelType, Message } from "@/types";
+import type { Message } from "@/types";
+import type { ModelId } from "@/lib/models/config";
 
 interface SendMessageResponse {
   content?: string;
@@ -12,7 +13,7 @@ interface SendMessageResponse {
 }
 
 export async function sendMessage(
-  model: ModelType,
+  modelId: ModelId,
   message: string,
   history: Message[],
   files?: File[]
@@ -31,15 +32,14 @@ export async function sendMessage(
       content: msg.content,
     }));
 
-    console.log(`[Action] Sending to ${model}: ${message.substring(0, 80)}...`);
+    console.log(`[Action] Sending to ${modelId}: ${message.substring(0, 80)}...`);
 
     const response = await fetch(`${baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model,
-        message,
-        history: formattedHistory,
+        modelId,
+        messages: formattedHistory.concat({ role: "user", content: message }),
       }),
     });
 
@@ -50,13 +50,13 @@ export async function sendMessage(
       return {
         error:
           data.error ||
-          `Server error (${response.status}): Gagal mendapatkan respons dari ${model}`,
+          `Server error (${response.status}): Gagal mendapatkan respons dari model`,
       };
     }
 
     if (!data.content) {
       return {
-        error: `${model} mengembalikan respons kosong. Coba lagi atau ganti model.`,
+        error: `Model mengembalikan respons kosong. Coba lagi atau ganti model.`,
       };
     }
 
@@ -78,7 +78,7 @@ export async function sendMessage(
 
     if (error.message?.includes("timeout") || error.name === "AbortError") {
       return {
-        error: `Timeout: ${model} terlalu lama merespon. Coba lagi atau gunakan model lain.`,
+        error: `Timeout: Model terlalu lama merespon. Coba lagi atau gunakan model lain.`,
       };
     }
 

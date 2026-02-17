@@ -7,7 +7,8 @@ import { InputArea } from "./InputArea";
 import { ModelSelector } from "./ModelSelector";
 import { CostToast } from "./CostToast";
 import { sendMessage } from "@/app/actions/chat";
-import type { Message, ModelType } from "@/types";
+import type { Message } from "@/types";
+import { MODELS, ModelId, DEFAULT_MODEL } from "@/lib/models/config";
 
 export type ChatContainerProps = {
   userId?: string;
@@ -23,10 +24,11 @@ const STATUS_LABELS: Record<AiStatus, string> = {
   error: "Terjadi kesalahan",
 };
 
-const MODEL_DISPLAY_NAMES: Record<ModelType, string> = {
-  claude: "Claude",
-  llama: "LLaMA",
-  deepseek: "DeepSeek",
+// Mapping ModelId to display names
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  'us.anthropic.claude-opus-4-6-v1': 'Claude Opus 4.6',
+  'us.anthropic.claude-sonnet-4-0-v1': 'Claude Sonnet 4.0',
+  'us.meta.llama4-maverick-17b-instruct-v1': 'Llama 4 Maverick',
 };
 
 const suggestions = [
@@ -39,7 +41,7 @@ const suggestions = [
 export function ChatContainer({ userId }: ChatContainerProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelType>("claude");
+  const [selectedModel, setSelectedModel] = useState<ModelId>(DEFAULT_MODEL);
   const [cost, setCost] = useState<number | null>(null);
   const [aiStatus, setAiStatus] = useState<AiStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -137,7 +139,12 @@ export function ChatContainer({ userId }: ChatContainerProps) {
             </div>
           </div>
 
-          <ModelSelector selectedModel={selectedModel} onModelChange={setSelectedModel} disabled={isLoading} />
+          <ModelSelector 
+            models={Object.values(MODELS)} 
+            currentModel={selectedModel} 
+            onSelect={setSelectedModel} 
+            disabled={isLoading} 
+          />
         </header>
 
         {aiStatus !== "idle" && (
