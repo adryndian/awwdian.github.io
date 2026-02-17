@@ -1,17 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { initPostHog, posthog } from '@/lib/posthog';
 import './globals.css';
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+// Component that uses useSearchParams - must be wrapped in Suspense
+function PostHogPageView() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-
-  useEffect(() => {
-    initPostHog();
-  }, []);
 
   useEffect(() => {
     if (pathname) {
@@ -23,9 +20,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     }
   }, [pathname, searchParams]);
 
+  return null;
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    initPostHog();
+  }, []);
+
   return (
     <html lang="id" suppressHydrationWarning>
-      <body className="h-full antialiased">{children}</body>
+      <body className="h-full antialiased">
+        {children}
+        <Suspense fallback={null}>
+          <PostHogPageView />
+        </Suspense>
+      </body>
     </html>
   );
 }
