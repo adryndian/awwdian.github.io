@@ -24,47 +24,24 @@ function TypingDots() {
 }
 
 export function MessageList({ messages, isLoading }: MessageListProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  /*
-   * ─── FIX: Scroll-to-bottom yang benar ────────────────────────────────
-   *
-   * MASALAH SEBELUMNYA:
-   *   bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-   *
-   *   `scrollIntoView` dengan block:'end' memposisikan elemen di batas bawah
-   *   VIEWPORT (window.innerHeight). Tapi InputArea adalah `fixed bottom-0`
-   *   yang menutup ±80-100px bawah viewport. Akibatnya pesan terakhir &
-   *   typing indicator TERTUTUP di balik InputArea.
-   *
-   * FIX:
-   *   Gunakan manual scroll pada container (scrollTop = scrollHeight) sebagai
-   *   pengganti scrollIntoView. Ini memastikan konten di-scroll sampai paling
-   *   bawah dari container, bukan viewport. Karena container sudah punya
-   *   padding-bottom yang cukup (dari ChatContainer), clearance terjamin.
-   *
-   *   Juga tambahkan ref ke scroll container untuk kontrol manual.
-   * ─────────────────────────────────────────────────────────────────────
-   */
+  // FIX: Manual scroll ke container bukan scrollIntoView ke viewport.
+  // scrollIntoView block:'end' scroll ke tepi viewport — tertutup InputArea fixed.
+  // container.scrollTo scrollTop ke bawah container — clearance pb terjamin.
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior,
-    });
+    container.scrollTo({ top: container.scrollHeight, behavior });
   };
 
   useEffect(() => {
     scrollToBottom('smooth');
   }, [messages]);
 
-  // Scroll lebih agresif saat isLoading (streaming) berubah
   useEffect(() => {
-    if (isLoading) {
-      scrollToBottom('smooth');
-    }
+    if (isLoading) scrollToBottom('smooth');
   }, [isLoading]);
 
   if (messages.length === 0 && !isLoading) {
@@ -92,10 +69,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
   }
 
   return (
-    /*
-     * FIX: overflow-x-hidden di sini untuk double protection.
-     * Ini container scroll utama — ref dipakai untuk manual scroll.
-     */
+    // FIX: overflow-x-hidden cegah horizontal scroll, ref untuk manual scrollTo
     <div
       ref={scrollContainerRef}
       className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6"
@@ -137,11 +111,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                 )}
               </div>
 
-              {/*
-               * FIX: min-w-0 WAJIB pada flex column ini.
-               * Tanpa min-w-0, flex item tidak bisa menyusut di bawah konten-nya,
-               * menyebabkan code block overflow keluar dari layar.
-               */}
+              {/* FIX: min-w-0 wajib agar flex child bisa menyusut & tidak overflow */}
               <div
                 className={`flex flex-col gap-1.5 min-w-0 ${
                   isUser
@@ -165,12 +135,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                   </div>
                 )}
 
-                {/*
-                 * FIX: Tambahkan overflow-hidden pada bubble.
-                 * Ini mencegah CodeBlock (atau elemen lebar lainnya) menerobos
-                 * keluar dari batas bubble.
-                 * Juga tambahkan min-w-0 untuk konsistensi flex behavior.
-                 */}
+                {/* FIX: overflow-hidden + min-w-0 pada bubble cegah CodeBlock menembus border */}
                 <div
                   className={`rounded-2xl px-4 py-3 shadow-lg min-w-0 overflow-hidden w-full ${
                     isUser
@@ -193,22 +158,17 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                     </div>
                   )}
 
-                  {/* Text content */}
                   {isStreaming && !hasContent ? (
                     <TypingDots />
                   ) : (
-                    /*
-                     * FIX: Tambahkan overflow-hidden pada prose container.
-                     * prose-glass saja tidak cukup — perlu overflow-hidden
-                     * untuk mencegah child elements (code block, table, img)
-                     * menerobos keluar area bubble.
-                     */
+                    // FIX: overflow-hidden pada prose container cegah child elements (table, code)
+                    // menerobos keluar bubble
                     <div className="prose-glass overflow-hidden">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
                           code(props) {
-                            const { className, children, ...rest } = props;
+                            const { className, children } = props;
                             const match = /language-(\w+)/.exec(className || '');
                             const value = String(children).replace(/\n$/, '');
                             const isInline = !className && !value.includes('\n');
@@ -272,14 +232,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
           );
         })}
 
-        {/*
-         * FIX: Anchor scroll harus cukup tinggi untuk clearance dari input box.
-         * h-2 (8px) tidak cukup — dengan fixed input ~90px, scroll konten
-         * terakhir bisa tepat di balik input box.
-         *
-         * Tapi karena kita sudah pakai manual scrollTop = scrollHeight di atas,
-         * anchor ini tidak lagi critical. Tetap kita pertahankan sebagai backup.
-         */}
+        {/* Scroll anchor - pb-4 memberi jarak dari InputArea fixed bottom */}
         <div ref={bottomRef} className="h-4" aria-hidden="true" />
       </div>
     </div>

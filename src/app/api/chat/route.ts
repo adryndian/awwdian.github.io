@@ -42,7 +42,7 @@ function validateMessages(messages: unknown[]): {
       return { valid: false, error: `Message[${i}] content must be a string` };
 
     if ((msg.content as string).length > 5000000)
-      return { valid: false, error: `Message[${i}] exceeds 50,000 character limit` };
+      return { valid: false, error: `Message[${i}] exceeds 5000,000 character limit` };
 
     validated.push({
       role: msg.role as 'user' | 'assistant',

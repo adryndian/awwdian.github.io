@@ -37,7 +37,6 @@ export function InputArea({
   const [isFocused, setIsFocused] = useState(false);
   const [sendingState, setSendingState] = useState<'idle' | 'sending' | 'sent'>('idle');
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -45,7 +44,6 @@ export function InputArea({
     el.style.height = Math.min(el.scrollHeight, 200) + 'px';
   }, [value]);
 
-  // Reset sending state when loading changes
   useEffect(() => {
     if (!isLoading && sendingState === 'sending') {
       setSendingState('sent');
@@ -90,15 +88,12 @@ export function InputArea({
     (value.trim().length > 0 || pendingFiles.length > 0) && !isLoading && !disabled;
 
   return (
-    /*
-     * FIX: InputArea harus fixed bottom-0.
-     * Pastikan z-index cukup tinggi (z-30) tapi tidak menghalangi modal/dropdown.
-     * `pb-safe` untuk iPhone notch / home indicator.
-     */
-    <div className="fixed bottom-0 left-0 right-0 z-30 px-3 pb-3 sm:pb-4"
-         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+    // FIX: fixed bottom-0, safe-area for iPhone notch, z-30
+    <div
+      className="fixed bottom-0 left-0 right-0 z-30 px-3 pb-3 sm:pb-4"
+      style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
+    >
       <div className="max-w-4xl mx-auto">
-        {/* Floating container */}
         <div
           {...getRootProps()}
           className={`glass-card relative transition-all duration-300 ${
@@ -109,7 +104,6 @@ export function InputArea({
         >
           <input {...getInputProps()} />
 
-          {/* Drag overlay */}
           {isDragActive && (
             <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-blue-500/20 backdrop-blur-sm z-10 animate-scaleIn">
               <p className="text-sm font-semibold text-white drop-shadow">
@@ -118,7 +112,6 @@ export function InputArea({
             </div>
           )}
 
-          {/* File attachments preview */}
           {pendingFiles.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-3 pt-2 pb-1.5 border-b border-white/10 animate-slideInRight">
               {pendingFiles.map((file) => (
@@ -140,9 +133,7 @@ export function InputArea({
             </div>
           )}
 
-          {/* Input row */}
           <div className="flex items-end gap-2 px-2.5 sm:px-3 py-2">
-            {/* Attach button */}
             <button
               type="button"
               onClick={open}
@@ -154,21 +145,10 @@ export function InputArea({
             </button>
 
             {/*
-             * ─── FIX KRITIS: iOS Safari Auto-Zoom ────────────────────────────
-             * iOS Safari OTOMATIS zoom halaman ketika user tap/focus ke input
-             * yang memiliki font-size < 16px.
-             *
-             * SEBELUM (BUGGY):
-             *   className="... text-[15px] ..."
-             *   → 15px < 16px = iOS zoom
-             *
-             * SESUDAH (FIXED):
-             *   style={{ fontSize: '16px' }}
-             *   → 16px = tidak ada zoom
-             *
-             * Catatan: Tailwind class text-base = 16px juga bisa dipakai,
-             * tapi inline style lebih explicit dan tidak bisa di-override.
-             * ─────────────────────────────────────────────────────────────── */
+              FIX iOS auto-zoom: font-size HARUS >= 16px pada semua input/textarea.
+              iOS Safari zoom otomatis jika font-size input < 16px saat focus.
+              Sebelumnya: text-[15px] = 15px = trigger zoom.
+            */}
             <textarea
               ref={textareaRef}
               value={value}
@@ -181,7 +161,7 @@ export function InputArea({
               style={{
                 maxHeight: '200px',
                 minHeight: '40px',
-                fontSize: '16px', // ← FIX: minimum 16px untuk cegah iOS auto-zoom
+                fontSize: '16px',
               }}
               className="flex-1 bg-transparent text-white placeholder-white/50 resize-none py-2.5 sm:py-3 focus:outline-none leading-relaxed"
               onKeyDown={(e) => {
@@ -192,7 +172,6 @@ export function InputArea({
               }}
             />
 
-            {/* Send button */}
             <button
               onClick={handleSend}
               disabled={!canSend}
@@ -213,7 +192,6 @@ export function InputArea({
             </button>
           </div>
 
-          {/* Hint */}
           <div className="px-3 pb-2.5 flex items-center justify-between text-[11px] text-white/40">
             <span>Enter kirim • Shift+Enter baris baru</span>
             {value.length > 0 && <span>{value.length} karakter</span>}
