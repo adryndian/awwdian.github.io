@@ -1,5 +1,5 @@
 import AdmZip from 'adm-zip';
-import { ExtractedFile } from '@/types';
+import type { ExtractedFile } from '@/types';
 
 /**
  * Daftar ekstensi file yang diizinkan untuk diekstrak

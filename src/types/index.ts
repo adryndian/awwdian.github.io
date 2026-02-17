@@ -1,5 +1,11 @@
 // src/types/index.ts
 
+export type ExtractedFile = {
+  name: string;
+  extension: string;
+  content: string;
+};
+
 export type ModelType = "claude" | "llama" | "deepseek";
 
 export type MessageRole = "user" | "assistant" | "system";

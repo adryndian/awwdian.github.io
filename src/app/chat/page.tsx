@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { ChatContainer } from '@/components/chat/ChatContainer.tsx';
+import { ChatContainer } from '@/components/chat/ChatContainer';
 
 export default async function ChatPage() {
   const cookieStore = cookies();

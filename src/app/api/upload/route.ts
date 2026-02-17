@@ -1,6 +1,9 @@
+
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from 'next/server';
 import { extractZip, validateZipFile, formatFileSize } from '@/lib/upload/extractor';
-import { ExtractedFile } from '@/types';
+import type { ExtractedFile } from '@/types';
 
 /**
  * Konstanta limitasi
