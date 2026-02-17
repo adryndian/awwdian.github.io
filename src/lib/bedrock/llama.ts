@@ -2,6 +2,16 @@ import { InvokeModelWithResponseStreamCommand } from '@aws-sdk/client-bedrock-ru
 import { bedrockClient } from './client';
 import { MODELS } from '../models/config';
 
+
+
+function messagesToPrompt(messages: { role: string; content: string }[]) {
+  // sederhana & kompatibel luas
+  // (kalau mau lebih "llama chat template", nanti kita upgrade)
+  return messages
+    .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+    .join('\n\n') + '\n\nASSISTANT:';
+}
+
 export async function* streamLlama(
   messages: { role: string; content: string }[]
 ): AsyncGenerator<string, { inputTokens: number; outputTokens: number; costUSD: number }> {
@@ -15,12 +25,10 @@ export async function* streamLlama(
   const command = new InvokeModelWithResponseStreamCommand({
     modelId: model.bedrockId,
     body: JSON.stringify({
-      messages: validMessages.map(m => ({
-        role: m.role === 'user' ? 'user' : 'assistant',
-        content: m.content,
-      })),
+      prompt,
       max_gen_len: 4096,
       temperature: 0.7,
+      top_p: 0.9,
       
     }),
     contentType: 'application/json',

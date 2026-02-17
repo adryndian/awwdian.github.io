@@ -15,7 +15,7 @@ export async function* streamDeepSeek(
   const command = new InvokeModelWithResponseStreamCommand({
     modelId: model.bedrockId,
     body: JSON.stringify({
-      messages: validMessages.map(m => ({ role: m.role, content: m.content })),
+      prompt,
       max_tokens: 8096,
       temperature: 0.7,
     }),
@@ -42,6 +42,8 @@ export async function* streamDeepSeek(
             
             // DeepSeek R1 format: { choices: [{ delta: { content?, reasoning_content? }, finish_reason }], usage }
             const delta = chunk.choices?.[0]?.delta;
+const content = delta?.content || '';
+const reasoning = delta?.reasoning_content ||'';
             
             if (delta) {
               // Prioritas: ambil content dulu, fallback ke reasoning jika tidak ada
