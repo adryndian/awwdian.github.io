@@ -1,15 +1,17 @@
 'use client';
 
-import { ModelConfig } from '@/lib/models/config';
+import { MODELS, ModelId } from '@/lib/models/config';
+import { Dispatch, SetStateAction } from 'react';
+
+type ModelType = ModelId;
 
 interface ModelSelectorProps {
-  models: ModelConfig[];
-  currentModel: string;
-  onSelect: (modelId: string) => void;
+  selectedModel: ModelType;
+  onModelChange: Dispatch<SetStateAction<ModelType>>;
   disabled?: boolean;
 }
 
-export function ModelSelector({ models, currentModel, onSelect, disabled }: ModelSelectorProps) {
+export function ModelSelector({ selectedModel, onModelChange, disabled }: ModelSelectorProps) {
   const getCostBadge = (level: string) => {
     const colors = {
       high: 'bg-red-100 text-red-800',
@@ -23,12 +25,12 @@ export function ModelSelector({ models, currentModel, onSelect, disabled }: Mode
     <div className="space-y-2">
       <label className="text-sm font-medium text-gray-700">Select Model</label>
       <select
-        value={currentModel}
-        onChange={(e) => onSelect(e.target.value)}
+        value={selectedModel}
+        onChange={(e) => onModelChange(e.target.value as ModelType)}
         disabled={disabled}
         className="w-full p-2 border rounded-lg bg-white disabled:bg-gray-100"
       >
-        {models.map((model) => (
+        {Object.values(MODELS).map((model) => (
           <option key={model.id} value={model.id}>
             {model.name} - {model.description}
           </option>
@@ -36,13 +38,13 @@ export function ModelSelector({ models, currentModel, onSelect, disabled }: Mode
       </select>
       
       <div className="flex gap-2 flex-wrap">
-        {models.map((model) => (
+        {Object.values(MODELS).map((model) => (
           <button
             key={model.id}
-            onClick={() => onSelect(model.id)}
-            disabled={disabled || currentModel === model.id}
+            onClick={() => onModelChange(model.id)}
+            disabled={disabled || selectedModel === model.id}
             className={`px-3 py-1 text-xs rounded-full border transition-colors
-              ${currentModel === model.id 
+              ${selectedModel === model.id 
                 ? 'bg-blue-500 text-white border-blue-500' 
                 : 'bg-white hover:bg-gray-50 border-gray-300'
               } disabled:opacity-50`}
@@ -59,10 +61,6 @@ export function ModelSelector({ models, currentModel, onSelect, disabled }: Mode
           </button>
         ))}
       </div>
-      
-      <p className="text-xs text-gray-500 mt-1">
-        Current: {models.find(m => m.id === currentModel)?.description}
-      </p>
     </div>
   );
 }
