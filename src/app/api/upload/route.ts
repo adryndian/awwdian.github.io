@@ -168,7 +168,7 @@ async function handleSingleFileUpload(file: File) {
     // Buat ExtractedFile structure
     const extractedFile: ExtractedFile = {
       name: file.name,
-      content: text.length > 50000 ? text.substring(0, 50000) + '\n\n[Truncated...]' : text,
+      content: text.length > 5000000000 ? text.substring(0, 5000000000) + '\n\n[Truncated...]' : text,
       extension: ext
     };
 

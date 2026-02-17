@@ -21,7 +21,7 @@ export async function* streamLlama(
       })),
       max_gen_len: 4096,
       temperature: 0.7,
-      top_p: 0.9,
+      
     }),
     contentType: 'application/json',
     accept: 'application/json',
