@@ -160,9 +160,7 @@ export function ModelSelector({
                   text-white text-xs font-bold flex-shrink-0
                   ${selectedModel === model.id ? "shadow-lg" : ""}
                 `}
-              >
-                {model.icon}
-              </              >
+                            >
                 {model.icon}
               </span>
 

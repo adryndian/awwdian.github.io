@@ -67,7 +67,6 @@ export async function sendMessage(
       outputTokens: data.outputTokens,
     };
   } catch (error: any) {
-    console.error(`[Action]
         console.error(`[Action] Exception:`, error.message);
 
     // Handle specific error types
