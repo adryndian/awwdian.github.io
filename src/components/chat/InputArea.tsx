@@ -1,345 +1,275 @@
-'use client';
+// src/components/chat/InputArea.tsx
+"use client";
 
-import { useRef, useEffect, useState } from 'react';
-import { ArrowUp, Paperclip, X, Loader2, ChevronDown, Zap, Brain, Cpu, Flame, Check } from 'lucide-react';
-import { useDropzone } from 'react-dropzone';
-import { ModelId } from '@/types';
-import { MODELS } from '@/lib/models/config';
-import { posthog } from '@/lib/posthog';
-
-interface PendingFile {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  data: string;
-}
+import { useState, useRef, useEffect, useCallback } from "react";
+import type { ModelType } from "@/types";
 
 interface InputAreaProps {
-  value: string;
-  onChange: (value: string) => void;
-  onSend: (files?: PendingFile[]) => void;
-  isLoading?: boolean;
-  disabled?: boolean;
-  pendingFiles?: PendingFile[];
-  onAddFiles?: (files: PendingFile[]) => void;
-  onRemoveFile?: (id: string) => void;
-  // Model selector props — dipindahkan dari header ke input area
-  selectedModel: ModelId;
-  onModelChange: (model: ModelId) => void;
+  onSendMessage: (content: string, files?: File[]) => void;
+  isLoading: boolean;
+  selectedModel: ModelType;
 }
 
-// Icon map untuk setiap model
-const modelIcons: Partial<Record<ModelId, React.ElementType>> = {
-  'claude-sonnet-4-5': Zap,
-  'claude-opus-4-6':   Brain,
-  'deepseek-r1':       Cpu,
-  'llama-4-maverick':  Flame,
-};
+export function InputArea({
+  onSendMessage,
+  isLoading,
+  selectedModel,
+}: InputAreaProps) {
+  const [input, setInput] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-// ─── Mini Model Selector (embedded di dalam input box) ──────────────────────
-function ModelPill({
-  selected,
-  onSelect,
-  disabled,
-}: {
-  selected: ModelId;
-  onSelect: (id: ModelId) => void;
-  disabled?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const selectedModel = MODELS[selected];
-  const Icon = modelIcons[selected] || Zap;
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+  // Auto-resize textarea
+  const adjustHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      const maxHeight = 160; // ~6 lines
+      textarea.style.height =
+        Math.min(textarea.scrollHeight, maxHeight) + "px";
+    }
   }, []);
 
-  const handleSelect = (id: ModelId) => {
-    posthog.capture('model_selected_from_input', { modelId: id });
-    onSelect(id);
-    setOpen(false);
-  };
-
-  return (
-    <div ref={ref} className="relative">
-      {/* Pill trigger */}
-      <button
-        type="button"
-        onClick={() => !disabled && setOpen((p) => !p)}
-        disabled={disabled}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass-input
-                   text-xs font-semibold text-white/80 hover:text-white
-                   hover:bg-white/12 transition-smooth disabled:opacity-40
-                   disabled:cursor-not-allowed border border-white/10
-                   whitespace-nowrap"
-      >
-        {/* Color dot */}
-        <span
-          className="w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ backgroundColor: selectedModel?.color || '#a78bfa' }}
-        />
-        {/* Model name — truncate jika panjang */}
-        <span className="max-w-[90px] truncate">{selectedModel?.name || 'Model'}</span>
-        <ChevronDown
-          className="w-3 h-3 text-white/40 transition-transform shrink-0"
-          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
-        />
-      </button>
-
-      {/* Dropdown — muncul ke ATAS karena input ada di bawah */}
-      {open && (
-        <div className="absolute bottom-full left-0 mb-2 w-64 glass-dark rounded-2xl
-                        shadow-[var(--shadow-elevated)] z-50 overflow-hidden py-2
-                        border border-white/10 animate-scaleIn">
-          <p className="text-[10px] font-bold text-white/35 uppercase tracking-widest px-4 pt-1 pb-2">
-            Pilih Model
-          </p>
-          {(Object.keys(MODELS) as ModelId[]).map((id) => {
-            const m = MODELS[id];
-            const ModelIcon = modelIcons[id] || Zap;
-            const active = selected === id;
-            return (
-              <button
-                key={id}
-                onClick={() => handleSelect(id)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-smooth ${
-                  active ? 'bg-white/15' : 'hover:bg-white/8'
-                }`}
-              >
-                <div
-                  className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: `${m.color}25` }}
-                >
-                  <ModelIcon className="w-3.5 h-3.5" style={{ color: m.color }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{m.name}</p>
-                  <p className="text-[11px] text-white/40 truncate">{m.description}</p>
-                </div>
-                {active && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: m.color }} />}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Backdrop untuk tutup dropdown */}
-      {open && (
-        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-      )}
-    </div>
-  );
-}
-
-// ─── Main InputArea ──────────────────────────────────────────────────────────
-export function InputArea({
-  value,
-  onChange,
-  onSend,
-  isLoading,
-  disabled,
-  pendingFiles = [],
-  onAddFiles,
-  onRemoveFile,
-  selectedModel,
-  onModelChange,
-}: InputAreaProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [isFocused, setIsFocused] = useState(false);
-  const [sendingState, setSendingState] = useState<'idle' | 'sending' | 'sent'>('idle');
-
   useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 200) + 'px';
-  }, [value]);
+    adjustHeight();
+  }, [input, adjustHeight]);
 
+  // Focus textarea on mount
   useEffect(() => {
-    if (!isLoading && sendingState === 'sending') {
-      setSendingState('sent');
-      setTimeout(() => setSendingState('idle'), 300);
+    textareaRef.current?.focus();
+  }, []);
+
+  // Re-focus after loading completes
+  useEffect(() => {
+    if (!isLoading) {
+      setTimeout(() => textareaRef.current?.focus(), 100);
     }
-  }, [isLoading, sendingState]);
+  }, [isLoading]);
 
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    onDrop: (acceptedFiles) => {
-      if (!onAddFiles) return;
-      const promises = acceptedFiles.map(
-        (file) =>
-          new Promise<PendingFile>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              resolve({
-                id: Math.random().toString(36).slice(2),
-                name: file.name,
-                type: file.type,
-                size: file.size,
-                data: e.target?.result as string,
-              });
-            };
-            reader.readAsText(file);
-          })
-      );
-      Promise.all(promises).then(onAddFiles);
+  const handleSubmit = useCallback(() => {
+    const trimmed = input.trim();
+    if (!trimmed || isLoading) return;
+
+    onSendMessage(trimmed, files.length > 0 ? files : undefined);
+    setInput("");
+    setFiles([]);
+
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+  }, [input, files, isLoading, onSendMessage]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Enter to send, Shift+Enter for new line
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
     },
-    noClick: true,
-    disabled: isLoading || disabled,
-  });
+    [handleSubmit]
+  );
 
-  const handleSend = () => {
-    if ((!value.trim() && pendingFiles.length === 0) || isLoading || disabled) return;
-    setSendingState('sending');
-    requestAnimationFrame(() => {
-      onSend(pendingFiles.length > 0 ? pendingFiles : undefined);
-    });
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selected = e.target.files;
+      if (selected) {
+        setFiles((prev) => [...prev, ...Array.from(selected)]);
+      }
+      // Reset input so same file can be selected again
+      e.target.value = "";
+    },
+    []
+  );
+
+  const removeFile = useCallback((index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const modelPlaceholders: Record<ModelType, string> = {
+    claude: "Tanya Claude sesuatu...",
+    llama: "Tanya LLaMA sesuatu...",
+    deepseek: "Tanya DeepSeek sesuatu...",
   };
 
-  const canSend =
-    (value.trim().length > 0 || pendingFiles.length > 0) && !isLoading && !disabled;
-
   return (
-    <div
-      className="fixed bottom-0 left-0 right-0 z-30 px-3 pb-3 sm:pb-4"
-      style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
-    >
-      <div className="max-w-4xl mx-auto">
-        <div
-          {...getRootProps()}
-          className={`glass-card relative transition-all duration-300 ${
-            isFocused
-              ? 'shadow-[var(--shadow-elevated)] scale-[1.005]'
-              : 'shadow-[var(--shadow-glass)]'
-          } ${isDragActive ? 'ring-2 ring-blue-400 ring-opacity-60' : ''}`}
-        >
-          <input {...getInputProps()} />
-
-          {isDragActive && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-blue-500/20 backdrop-blur-sm z-10 animate-scaleIn">
-              <p className="text-sm font-semibold text-white drop-shadow">
-                Lepaskan file di sini
-              </p>
-            </div>
-          )}
-
-          {/* ── TOP ROW: Model Selector Pill ──────────────────────────── */}
-          <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-            <ModelPill
-              selected={selectedModel}
-              onSelect={onModelChange}
-              disabled={isLoading}
-            />
-            {/* Status generating di kanan pill */}
-            {isLoading && (
-              <span className="text-[11px] text-violet-300 font-medium flex items-center gap-1.5 animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" />
-                Generating…
+    <div className="border-t border-white/[0.06] bg-black/20 backdrop-blur-xl">
+      {/* File Preview */}
+      {files.length > 0 && (
+        <div className="px-4 pt-3 flex flex-wrap gap-2">
+          {files.map((file, index) => (
+            <div
+              key={`${file.name}-${index}`}
+              className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/8 border border-orange-500/15 rounded-lg"
+            >
+              <svg
+                className="w-3.5 h-3.5 text-orange-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                />
+              </svg>
+              <span className="text-xs text-orange-300 max-w-[150px] truncate">
+                {file.name}
               </span>
-            )}
-          </div>
-
-          {/* Divider tipis */}
-          <div className="mx-3 border-t border-white/8" />
-
-          {/* File attachments preview */}
-          {pendingFiles.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 px-3 pt-2 pb-1 animate-slideInRight">
-              {pendingFiles.map((file) => (
-                <div
-                  key={file.id}
-                  className="glass-input rounded-xl px-2.5 py-1 flex items-center gap-1.5 text-xs font-medium text-white/90"
+              <button
+                onClick={() => removeFile(index)}
+                className="text-white/30 hover:text-red-400 transition-colors"
+              >
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
                 >
-                  <span className="truncate max-w-[140px]">{file.name}</span>
-                  {onRemoveFile && (
-                    <button
-                      onClick={() => onRemoveFile(file.id)}
-                      className="text-white/50 hover:text-white transition-smooth shrink-0"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              ))}
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
             </div>
-          )}
-
-          {/* ── INPUT ROW ─────────────────────────────────────────────── */}
-          <div className="flex items-end gap-2 px-2.5 sm:px-3 py-2">
-            {/* Attach */}
-            <button
-              type="button"
-              onClick={open}
-              disabled={isLoading || disabled}
-              className="p-2.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10
-                         transition-smooth disabled:opacity-40 shrink-0 mb-0.5"
-              title="Attach file"
-            >
-              <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-
-            {/* Textarea — font-size 16px WAJIB untuk cegah iOS auto-zoom */}
-            <textarea
-              ref={textareaRef}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              placeholder={isLoading ? 'AI sedang mengetik...' : 'Ketik pesan...'}
-              disabled={isLoading || disabled}
-              rows={1}
-              style={{
-                maxHeight: '200px',
-                minHeight: '40px',
-                fontSize: '16px',
-              }}
-              className="flex-1 bg-transparent text-white placeholder-white/50
-                         resize-none py-2.5 sm:py-3 focus:outline-none leading-relaxed"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-            />
-
-            {/* ── Send Button: 30% lebih besar dari sebelumnya ──────────
-                Sebelum: w-9 h-9 sm:w-10 sm:h-10 (36px / 40px)
-                Sesudah: w-12 h-12 sm:w-13 sm:h-13 (48px / 52px) = ~30% lebih besar
-            */}
-            <button
-              onClick={handleSend}
-              disabled={!canSend}
-              className={`w-12 h-12 sm:w-[52px] sm:h-[52px] rounded-[16px]
-                          flex items-center justify-center shrink-0 mb-0.5
-                          transition-all duration-300 ${
-                canSend
-                  ? 'bg-gradient-to-br from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 shadow-lg shadow-blue-500/40 hover:shadow-blue-500/60 hover:scale-105'
-                  : 'bg-white/10 text-white/30 cursor-not-allowed'
-              } ${sendingState === 'sending' ? 'animate-pulse' : ''} ${
-                sendingState === 'sent' ? 'scale-110' : ''
-              }`}
-              title="Send (Enter)"
-            >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-white animate-spin" />
-              ) : (
-                <ArrowUp className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              )}
-            </button>
-          </div>
-
-          {/* Hint */}
-          <div className="px-3 pb-2.5 flex items-center justify-between text-[11px] text-white/40">
-            <span>Enter kirim • Shift+Enter baris baru</span>
-            {value.length > 0 && <span>{value.length} karakter</span>}
-          </div>
+          ))}
         </div>
+      )}
+
+      {/* Input Row */}
+      <div className="p-3 sm:p-4">
+        <div
+          className="
+            flex items-end gap-2 p-2
+            bg-white/[0.04] border border-white/[0.08]
+            rounded-2xl
+            input-glow
+            transition-all duration-200
+            focus-within:border-orange-500/25
+          "
+        >
+          {/* File Upload Button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            className="
+              flex-shrink-0 w-9 h-9 rounded-xl
+              flex items-center justify-center
+              text-white/30 hover:text-orange-400 hover:bg-orange-500/10
+              transition-all duration-200
+              disabled:opacity-30 disabled:cursor-not-allowed
+              mb-0.5
+            "
+            title="Upload file"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleFileSelect}
+            accept=".txt,.md,.pdf,.csv,.json,.js,.ts,.tsx,.jsx,.py,.java,.html,.css"
+          />
+
+          {/* Textarea */}
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={modelPlaceholders[selectedModel]}
+            disabled={isLoading}
+            rows={1}
+            className="
+              flex-1 bg-transparent text-white/90 text-sm
+              placeholder:text-white/25
+              resize-none outline-none
+              min-h-[36px] max-h-[160px]
+              py-2 px-1
+              disabled:opacity-40 disabled:cursor-not-allowed
+            "
+          />
+
+          {/* Send Button */}
+          <button
+            onClick={handleSubmit}
+            disabled={isLoading || !input.trim()}
+            className={`
+              flex-shrink-0 w-9 h-9 rounded-xl
+              flex items-center justify-center
+              transition-all duration-200 mb-0.5
+              ${
+                input.trim() && !isLoading
+                  ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-105 active:scale-95"
+                  : "bg-white/5 text-white/20 cursor-not-allowed"
+              }
+            `}
+            title="Kirim pesan (Enter)"
+          >
+            {isLoading ? (
+              <svg
+                className="w-4 h-4 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
+                />
+              </svg>
+            )}
+          </button>
+        </div>
+
+        {/* Footer Hint */}
+        <p className="text-[10px] text-white/15 text-center mt-2">
+          Enter untuk kirim · Shift+Enter untuk baris baru
+        </p>
       </div>
     </div>
   );

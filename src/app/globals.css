@@ -1,298 +1,315 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
-
+/* src/app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Design Tokens ──────────────────────────────────────────────────────── */
+/* ============================================
+   CSS Variables - Orange/Black/White Palette
+   ============================================ */
 :root {
-  --shadow-glass:    0 8px 32px rgba(31, 38, 135, 0.25);
-  --shadow-elevated: 0 12px 48px rgba(31, 38, 135, 0.40);
+  --orange-50: #fff7ed;
+  --orange-100: #ffedd5;
+  --orange-200: #fed7aa;
+  --orange-300: #fdba74;
+  --orange-400: #fb923c;
+  --orange-500: #f97316;
+  --orange-600: #ea580c;
+  --orange-700: #c2410c;
+  --orange-800: #9a3412;
+  --orange-900: #7c2d12;
 
-  /*
-   * FIX: Input box height untuk scroll-padding compensation.
-   * Nilai ini dipakai untuk memberitahu scroll container berapa
-   * ruang yang perlu disisakan di bawah agar tidak tertutup InputArea.
-   * InputArea: pb-3 + inner ~60px + hint ~20px ≈ 100px
-   */
-  --input-area-height: 110px;
+  --black-950: #030303;
+  --black-900: #0a0a0a;
+  --black-800: #111111;
+  --black-700: #1a1a1a;
+  --black-600: #222222;
+  --black-500: #2a2a2a;
+
+  --white-50: #ffffff;
+  --white-100: #f5f5f5;
+  --white-200: #e5e5e5;
+  --white-300: #d4d4d4;
+  --white-400: #a3a3a3;
+  --white-500: #737373;
+  --white-600: #525252;
 }
 
-/* ─── Reset ──────────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ============================================
+   Base Styles
+   ============================================ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-/* ─── Base ───────────────────────────────────────────────────────────────── */
 html {
   height: 100%;
-  /*
-   * FIX: Cegah horizontal scroll di level html.
-   * Ini fallback terkuat untuk mencegah page-level overflow
-   * yang menyebabkan browser zoom otomatis di mobile.
-   */
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 body {
   height: 100%;
+  overflow: hidden;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 35%, #4c1d95 65%, #5b21b6 100%);
-  background-attachment: fixed;
-  color: #ffffff;
+  background: var(--black-950);
+  color: var(--white-200);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   [FIX #4
+   /* ============================================
+   [FIX #4] ANIMATED GRADIENT BLUR BACKGROUND
+   ============================================ */
+.bg-gradient-blur {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
   overflow: hidden;
-  /*
-   * FIX: Cegah horizontal overflow di body level.
-   * Ini mencegah SyntaxHighlighter atau elemen lebar lainnya
-   * menyebabkan page-level zoom di iOS Safari.
-   */
-  max-width: 100vw;
+  pointer-events: none;
 }
 
-/* ─── Glassmorphism Utilities ────────────────────────────────────────────── */
-
-.glass-dark {
-  background: rgba(15, 12, 41, 0.55);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.bg-gradient-blur .orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  will-change: transform;
 }
 
-.glass-card {
-  background: rgba(255, 255, 255, 0.10);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: var(--shadow-glass);
+.bg-gradient-blur .orb-1 {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, var(--orange-700), var(--orange-900));
+  top: -200px;
+  left: -150px;
+  opacity: 0.35;
+  animation: orbFloat1 12s ease-in-out infinite;
 }
 
-.glass-card:hover {
-  background: rgba(255, 255, 255, 0.13);
-  border-color: rgba(255, 255, 255, 0.20);
+.bg-gradient-blur .orb-2 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, var(--orange-500), transparent);
+  bottom: -150px;
+  right: -100px;
+  opacity: 0.25;
+  animation: orbFloat2 15s ease-in-out infinite;
 }
 
-.glass-input {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+.bg-gradient-blur .orb-3 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, var(--orange-600), transparent);
+  top: 45%;
+  left: 50%;
+  opacity: 0.18;
+  animation: orbFloat3 18s ease-in-out infinite;
 }
 
-.glass-input:focus,
-.glass-input:focus-within {
-  background: rgba(255, 255, 255, 0.13);
-  border-color: rgba(167, 139, 250, 0.50);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
-  outline: none;
+@keyframes orbFloat1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(80px, 50px) scale(1.1); }
+  50% { transform: translate(40px, 100px) scale(0.95); }
+  75% { transform: translate(-30px, 60px) scale(1.05); }
 }
 
-.glass {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+@keyframes orbFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-70px, -50px) scale(1.08); }
+  50% { transform: translate(-40px, -90px) scale(0.92); }
+  75% { transform: translate(30px, -40px) scale(1.02); }
 }
 
-/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
+@keyframes orbFloat3 {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.35); }
+}
+
+/* ============================================
+   App Shell
+   ============================================ */
+.app-shell {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+  height: 100dvh;
+  max-width: 880px;
+  margin: 0 auto;
+  background: rgba(10, 10, 10, 0.5);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border-left: 1px solid rgba(255, 152, 0, 0.06);
+  border-right: 1px solid rgba(255, 152, 0, 0.06);
+  overflow: hidden;
+}
+
+/* ============================================
+   Custom Scrollbar
+   ============================================ */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18);
-  border-radius: 99px;
-}
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); }
-
-/* ─── Animations ─────────────────────────────────────────────────────────── */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.93); }
-  to   { opacity: 1; transform: scale(1); }
-}
-@keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-24px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(24px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes bounceDot {
-  0%, 80%, 100% { transform: scale(0.55); opacity: 0.35; }
-  40%           { transform: scale(1.00); opacity: 1.00; }
-}
-@keyframes blinkCursor {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
-}
-@keyframes pulseSoft {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.55; }
-}
-
-.animate-fadeInUp   { animation: fadeInUp   0.35s cubic-bezier(0.4, 0, 0.2, 1) both; }
-.animate-scaleIn    { animation: scaleIn    0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-.animate-slideInLeft  { animation: slideInLeft  0.28s cubic-bezier(0.4, 0, 0.2, 1) both; }
-.animate-slideInRight { animation: slideInRight 0.28s cubic-bezier(0.4, 0, 0.2, 1) both; }
-
-.dot-1 { animation: bounceDot 1.2s ease-in-out infinite 0.0s; }
-.dot-2 { animation: bounceDot 1.2s ease-in-out infinite 0.2s; }
-.dot-3 { animation: bounceDot 1.2s ease-in-out infinite 0.4s; }
-
-.typing-cursor::after {
-  content: '▋';
-  animation: blinkCursor 1s infinite;
-  color: #a78bfa;
-  margin-left: 2px;
-}
-
-/* ─── Prose (Markdown rendered by AI) ───────────────────────────────────── */
-.prose-glass {
-  font-size: 15px;
-  line-height: 1.72;
-  color: rgba(255, 255, 255, 0.93);
-  max-width: 100%;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  /*
-   * FIX: Tambahkan word-break untuk teks panjang tanpa spasi
-   * (URL, hash, string panjang) yang bisa overflow keluar bubble.
-   */
-  word-break: break-word;
-  /*
-   * FIX: min-width: 0 untuk flex/grid context.
-   * Tanpa ini, prose container bisa memaksa parent melebar.
-   */
-  min-width: 0;
-}
-.prose-glass p { margin-bottom: 0.8em; }
-.prose-glass p:last-child { margin-bottom: 0; }
-
-.prose-glass h1,
-.prose-glass h2,
-.prose-glass h3 {
-  font-weight: 600;
-  margin: 1.1em 0 0.5em;
-  line-height: 1.3;
-  color: #ffffff;
-}
-.prose-glass h1 { font-size: 1.3em; }
-.prose-glass h2 { font-size: 1.15em; }
-.prose-glass h3 { font-size: 1.03em; }
-
-.prose-glass ul,
-.prose-glass ol { padding-left: 1.4em; margin-bottom: 0.8em; }
-.prose-glass li { margin-bottom: 0.28em; }
-
-.prose-glass a {
-  color: #c4b5fd;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  word-break: break-all; /* FIX: URL panjang tidak overflow */
-}
-.prose-glass strong { font-weight: 600; color: #ffffff; }
-.prose-glass em { opacity: 0.85; }
-
-.prose-glass blockquote {
-  border-left: 3px solid rgba(167, 139, 250, 0.45);
-  padding-left: 1em;
-  color: rgba(255, 255, 255, 0.65);
-  margin: 0.8em 0;
-  font-style: italic;
-}
-.prose-glass hr {
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  margin: 1.2em 0;
-}
-
-/*
- * FIX: Table overflow — tabel lebar harus scroll, bukan overflow ke luar.
- */
-.prose-glass table {
-  /*
-   * SEBELUM: width: 100% — table bisa melebihi parent jika konten lebar
-   * SESUDAH: display block + overflow-x-auto — table scroll jika terlalu lebar
-   */
-  display: block;
-  overflow-x: auto;
-  max-width: 100%;
-  border-collapse: collapse;
-  margin: 0.8em 0;
-  font-size: 0.9em;
+  background: rgba(255, 152, 0, 0.2);
   border-radius: 10px;
-  -webkit-overflow-scrolling: touch;
-}
-.prose-glass th,
-.prose-glass td {
-  padding: 0.55em 0.8em;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  text-align: left;
-  white-space: nowrap; /* Biarkan table cell tidak wrap agar table lebih rapi */
-}
-.prose-glass th {
-  background: rgba(255, 255, 255, 0.10);
-  font-weight: 600;
-  color: #fff;
 }
 
-/*
- * ─── FIX: pre/code global fallback ──────────────────────────────────────
- * Ini backup untuk elemen pre/code yang di-render di luar CodeBlock component.
- * Memastikan tidak ada pre yang bisa overflow ke luar container.
- */
-pre {
-  max-width: 100%;
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 152, 0, 0.35);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 152, 0, 0.2) transparent;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 152, 0, 0.15); }
+  50% { box-shadow: 0 0 40px rgba(255, 152, 0, 0.3); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.35s ease-out;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out;
+}
+
+/* ============================================
+   Message Bubble Animations
+   ============================================ */
+.message-enter {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* ============================================
+   Markdown Content Styles
+   ============================================ */
+.prose pre {
+  background: rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  padding: 16px !important;
+  margin: 12px 0 !important;
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
-code {
-  word-break: break-word;
+.prose code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace !important;
+  font-size: 12px !important;
 }
 
-/*
- * ─── FIX: Scroll padding untuk MessageList ────────────────────────────
- * Ini memberitahu browser bahwa saat scroll-into-view, harus ada clearance
- * sebesar --input-area-height di bawah viewport scroll target.
- * Berguna sebagai fallback jika scrollIntoView masih dipakai.
- */
-.message-scroll-container {
-  scroll-padding-bottom: var(--input-area-height);
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
 }
 
-/* ─── Transitions ────────────────────────────────────────────────────────── */
-.transition-smooth {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.transition-bounce {
-  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* ─── Focus ring ─────────────────────────────────────────────────────────── */
-*:focus-visible {
-  outline: 2px solid rgba(167, 139, 250, 0.7);
-  outline-offset: 2px;
-  border-radius: 6px;
+.prose th,
+.prose td {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
 }
 
-/*
- * ─── FIX: Prevent iOS input zoom globally ───────────────────────────────
- * Semua input/textarea/select di aplikasi ini harus font-size >= 16px
- * untuk mencegah iOS Safari auto-zoom saat focus.
- *
- * Kita set di CSS sebagai safety net, tapi InputArea.tsx juga sudah
- * di-fix langsung dengan inline style fontSize: '16px'.
- */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="search"],
-select,
-textarea {
-  font-size: 16px !important; /* Cegah iOS auto-zoom */
+.prose th {
+  background: rgba(255, 152, 0, 0.08);
+  font-weight: 600;
+}
+
+.prose tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ============================================
+   Toast Notification
+   ============================================ */
+.toast-enter {
+  animation: slideDown 0.3s ease-out;
+}
+
+.toast-exit {
+  animation: fadeIn 0.2s ease-out reverse;
+}
+
+/* ============================================
+   Input Area Glow Effect
+   ============================================ */
+.input-glow:focus-within {
+  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.3),
+    0 0 20px rgba(255, 152, 0, 0.08);
+}
+
+/* ============================================
+   Mobile Optimizations
+   ============================================ */
+@media (max-width: 640px) {
+  .app-shell {
+    border-left: none;
+    border-right: none;
+  }
+
+  .bg-gradient-blur .orb {
+    filter: blur(80px);
+    opacity: 0.2;
+  }
+
+  .bg-gradient-blur .orb-1 {
+    width: 350px;
+    height: 350px;
+  }
+
+  .bg-gradient-blur .orb-2 {
+    width: 300px;
+    height: 300px;
+  }
+
+  .bg-gradient-blur .orb-3 {
+    width: 250px;
+    height: 250px;
+  }
+}
+
+/* ============================================
+   Selection Color
+   ============================================ */
+::selection {
+  background: rgba(255, 152, 0, 0.3);
+  color: white;
+}
+
+::-moz-selection {
+  background: rgba(255, 152, 0, 0.3);
+  color: white;
 }

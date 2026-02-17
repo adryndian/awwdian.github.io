@@ -1,26 +1,44 @@
-import type { Metadata } from 'next';
-import './globals.css';
-import { PostHogProvider } from '@/components/providers/PostHogProvider';
+// src/app/layout.tsx
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
-  title: 'BeckRock AI',
-  description: 'AI Chat powered by AWS Bedrock',
+  title: "Beckrock AI - Multi-Model Chat",
+  description: "Chat with Claude, LLaMA, and DeepSeek powered by AWS Bedrock",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="id" suppressHydrationWarning>
-      <head>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
-        />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-      </head>
-      <body className="h-full antialiased">
-        <PostHogProvider>{children}</PostHogProvider>
+    <html lang="id" className={inter.variable}>
+      <body className={`${inter.className} antialiased`}>
+        {/* [FIX #4] Animated Gradient Blur Background */}
+        <div className="bg-gradient-blur" aria-hidden="true">
+          <div className="orb orb-1" />
+          <div className="orb orb-2" />
+          <div className="orb orb-3" />
+        </div>
+
+        {/* App Shell */}
+        <div className="app-shell">
+          {children}
+        </div>
       </body>
     </html>
   );

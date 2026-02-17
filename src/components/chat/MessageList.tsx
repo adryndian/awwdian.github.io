@@ -1,241 +1,315 @@
-'use client';
+// src/components/chat/MessageList.tsx
+"use client";
 
-import { useEffect, useRef } from 'react';
-import { Message } from '@/types';
-import { MODELS } from '@/lib/models/config';
-import { User, Sparkles } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { CodeBlock } from '../markdown/CodeBlock';
+import { useState, useCallback } from "react";
+import type { Message } from "@/types";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { CodeBlock } from "@/components/markdown/CodeBlock";
 
-interface MessageListProps {
-  messages: Message[];
-  isLoading?: boolean;
+// ============================================
+// Copy Button Component
+// ============================================
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // Fallback for older browsers
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [text]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className={`
+        inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium
+        transition-all duration-200 border
+        ${
+          copied
+            ? "bg-green-500/10 border-green-500/20 text-green-400"
+            : "bg-white/5 border-white/10 text-white/40 hover:bg-orange-500/10 hover:border-orange-500/20 hover:text-orange-400"
+        }
+      `}
+      title={copied ? "Tersalin!" : "Salin teks"}
+    >
+      {copied ? (
+        <>
+          <svg
+            className="w-3 h-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+          Tersalin!
+        </>
+      ) : (
+        <>
+          <svg
+            className="w-3 h-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+            />
+          </svg>
+          Salin
+        </>
+      )}
+    </button>
+  );
 }
 
-function TypingDots() {
+// ============================================
+// Typing Indicator (shown while AI is generating)
+// ============================================
+function TypingIndicator() {
   return (
-    <div className="flex items-center gap-1.5 px-1 py-1">
-      <div className="w-2 h-2 rounded-full bg-white/70 dot-1" />
-      <div className="w-2 h-2 rounded-full bg-white/70 dot-2" />
-      <div className="w-2 h-2 rounded-full bg-white/70 dot-3" />
+    <div className="flex items-start gap-3 mb-4">
+      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-orange-500/20">
+        <span className="text-white text-xs font-bold">AI</span>
+      </div>
+      <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3">
+        <div className="flex items-center gap-1.5">
+          <span
+            className="w-2 h-2 rounded-full bg-orange-500 animate-bounce"
+            style={{ animationDelay: "0ms", animationDuration: "0.6s" }}
+          />
+          <span
+            className="w-2 h-2 rounded-full bg-orange-500 animate-bounce"
+            style={{ animationDelay: "150ms", animationDuration: "0.6s" }}
+          />
+          <span
+            className="w-2 h-2 rounded-full bg-orange-500 animate-bounce"
+            style={{ animationDelay: "300ms", animationDuration: "0.6s" }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
-export function MessageList({ messages, isLoading }: MessageListProps) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  // FIX SCROLL: Manual scrollTop ke container (bukan scrollIntoView ke viewport).
-  // InputArea adalah `fixed bottom-0` ~140px tingginya (model pill + input + hint).
-  // scrollIntoView block:'end' → scroll ke tepi viewport → pesan tertutup InputArea.
-  // container.scrollTo scrollHeight → scroll ke bawah area scroll → clearance terjamin.
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    container.scrollTo({ top: container.scrollHeight, behavior });
+// ============================================
+// Model Badge
+// ============================================
+function ModelBadge({ model }: { model: string }) {
+  const config: Record<string, { label: string; color: string }> = {
+    claude: { label: "Claude", color: "bg-amber-500/15 text-amber-400 border-amber-500/20" },
+    llama: { label: "LLaMA", color: "bg-purple-500/15 text-purple-400 border-purple-500/20" },
+    deepseek: { label: "DeepSeek", color: "bg-sky-500/15 text-sky-400 border-sky-500/20" },
   };
 
-  useEffect(() => {
-    scrollToBottom('smooth');
-  }, [messages]);
+  const { label, color } = config[model] || {
+    label: model,
+    color: "bg-white/10 text-white/50 border-white/10",
+  };
 
-  useEffect(() => {
-    if (isLoading) scrollToBottom('smooth');
-  }, [isLoading]);
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border ${color}`}
+    >
+      {label}
+    </span>
+  );
+}
 
-  if (messages.length === 0 && !isLoading) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 select-none animate-fadeInUp">
-        <div
-          className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6 animate-scaleIn"
-          style={{
-            background: 'rgba(255,255,255,0.12)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            boxShadow: '0 8px 32px rgba(31,38,135,0.3)',
-          }}
-        >
-          <Sparkles className="w-10 h-10 text-white drop-shadow-lg" />
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-3 drop-shadow-lg">
-          Halo! Apa yang bisa saya bantu?
-        </h2>
-        <p className="text-base text-white/60 text-center max-w-sm">
-          Pilih model AI dan mulai percakapan
-        </p>
-      </div>
-    );
-  }
+// ============================================
+// Single Message Component
+// ============================================
+function MessageBubble({ message }: { message: Message }) {
+  const isUser = message.role === "user";
 
   return (
     <div
-      ref={scrollContainerRef}
-      className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6"
-      style={{ WebkitOverflowScrolling: 'touch' }}
+      className={`flex items-start gap-3 mb-5 group ${
+        isUser ? "flex-row-reverse" : ""
+      }`}
     >
-      <div className="max-w-3xl mx-auto py-6 space-y-5">
-        {messages.map((message, idx) => {
-          const isUser = message.role === 'user';
-          const model = message.model ? MODELS[message.model] : null;
-          const isStreaming = message.isStreaming;
-          const hasContent = message.content && message.content.length > 0;
-
-          return (
-            <div
-              key={message.id}
-              className={`flex gap-3 animate-fadeInUp ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
-              style={{ animationDelay: `${Math.min(idx * 0.04, 0.3)}s` }}
-            >
-              {/* Avatar */}
-              <div
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-2xl flex items-center justify-center shrink-0 mt-1 ${
-                  isUser
-                    ? 'bg-gradient-to-br from-blue-400 to-blue-600 shadow-lg shadow-blue-500/30'
-                    : 'glass-card'
-                }`}
-                style={
-                  !isUser && model
-                    ? { boxShadow: `0 0 0 2px ${model.color}50, 0 4px 12px rgba(0,0,0,0.3)` }
-                    : {}
-                }
-              >
-                {isUser ? (
-                  <User className="w-4 h-4 text-white" />
-                ) : (
-                  <div
-                    className="w-3.5 h-3.5 rounded-full"
-                    style={{ backgroundColor: model?.color || '#a78bfa' }}
-                  />
-                )}
-              </div>
-
-              {/* Message column — min-w-0 wajib agar bisa menyusut */}
-              <div
-                className={`flex flex-col gap-1.5 min-w-0 ${
-                  isUser
-                    ? 'items-end max-w-[82%] sm:max-w-[75%]'
-                    : 'items-start max-w-[88%] sm:max-w-[80%]'
-                }`}
-              >
-                {/* Model label */}
-                {!isUser && model && (
-                  <div className="px-2">
-                    <span
-                      className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{
-                        color: model.color,
-                        backgroundColor: `${model.color}20`,
-                        border: `1px solid ${model.color}35`,
-                      }}
-                    >
-                      {model.name}
-                    </span>
-                  </div>
-                )}
-
-                {/* Bubble — overflow-hidden + min-w-0 cegah CodeBlock overflow */}
-                <div
-                  className={`rounded-2xl px-4 py-3 shadow-lg min-w-0 overflow-hidden w-full ${
-                    isUser
-                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm'
-                      : 'glass-card text-white rounded-tl-sm'
-                  }`}
-                >
-                  {/* File attachments */}
-                  {message.files && message.files.length > 0 && (
-                    <div className="mb-2.5 space-y-1.5 pb-2.5 border-b border-white/15">
-                      {message.files.map((file, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 text-xs glass-input rounded-lg px-2.5 py-1.5"
-                        >
-                          <div className="w-1.5 h-1.5 rounded-full bg-white/60" />
-                          <span className="truncate text-white/85 font-medium">{file.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {isStreaming && !hasContent ? (
-                    <TypingDots />
-                  ) : (
-                    <div className="prose-glass overflow-hidden">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code(props) {
-                            const { className, children } = props;
-                            const match = /language-(\w+)/.exec(className || '');
-                            const value = String(children).replace(/\n$/, '');
-                            const isInline = !className && !value.includes('\n');
-                            return !isInline && match ? (
-                              <CodeBlock language={match[1]} value={value} />
-                            ) : (
-                              <CodeBlock inline value={value} />
-                            );
-                          },
-                          img(props) {
-                            const { src, alt } = props;
-                            return (
-                              <div className="my-2 rounded-xl overflow-hidden border border-white/15">
-                                <img
-                                  src={src}
-                                  alt={alt || 'Image'}
-                                  className="w-full h-auto object-contain max-h-[300px]"
-                                  loading="lazy"
-                                />
-                              </div>
-                            );
-                          },
-                          video(props) {
-                            const { src } = props;
-                            return (
-                              <div className="my-2 rounded-xl overflow-hidden border border-white/15">
-                                <video
-                                  src={src}
-                                  controls
-                                  className="w-full h-auto max-h-[300px]"
-                                  preload="metadata"
-                                />
-                              </div>
-                            );
-                          },
-                        }}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
-                      {isStreaming && hasContent && <span className="typing-cursor" />}
-                    </div>
-                  )}
-                </div>
-
-                {/* Token / cost info */}
-                {message.tokens && !isStreaming && (
-                  <div className="flex items-center gap-2 px-2">
-                    <span className="text-[11px] text-white/40">
-                      {message.tokens.input.toLocaleString()} in /{' '}
-                      {message.tokens.output.toLocaleString()} out
-                    </span>
-                    {message.cost !== undefined && message.cost > 0 && (
-                      <span className="text-[11px] font-semibold text-emerald-300">
-                        ${message.cost.toFixed(4)}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* FIX: paddingBottom besar agar pesan terakhir tidak tertutup InputArea.
-            InputArea = model pill (~40px) + divider + input row (~60px) + hint (~24px)
-            + padding top/bottom + safe-area = ~160px total.
-            Tambah 24px buffer = 184px → pakai 48 (tailwind h-48 = 192px).  */}
-        <div ref={bottomRef} className="h-48" aria-hidden="true" />
+      {/* Avatar */}
+      <div
+        className={`
+          w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5
+          ${
+            isUser
+              ? "bg-white/10"
+              : "bg-gradient-to-br from-orange-500 to-orange-700 shadow-lg shadow-orange-500/20"
+          }
+        `}
+      >
+        <span className="text-white text-xs font-bold">
+          {isUser ? "U" : "AI"}
+        </span>
       </div>
+
+      {/* Content */}
+      <div className={`max-w-[80%] ${isUser ? "items-end" : "items-start"} flex flex-col`}>
+        {/* Model badge for AI messages */}
+        {!isUser && message.model && (
+          <div className="mb-1.5 flex items-center gap-2">
+            <ModelBadge model={message.model} />
+            <span className="text-[10px] text-white/25">
+              {new Date(message.timestamp).toLocaleTimeString("id-ID", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          </div>
+        )}
+
+        {/* Bubble */}
+        <div
+          className={`
+            rounded-2xl px-4 py-3 text-sm leading-relaxed
+            ${
+              isUser
+                ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-tr-sm"
+                : "bg-white/[0.06] border border-white/[0.08] text-white/85 rounded-tl-sm"
+            }
+          `}
+        >
+          {isUser ? (
+            <p className="whitespace-pre-wrap">{message.content}</p>
+          ) : (
+            <div className="prose prose-invert prose-sm max-w-none
+              prose-p:my-2 prose-p:leading-relaxed
+              prose-headings:text-white prose-headings:font-bold
+              prose-strong:text-orange-300
+              prose-code:text-orange-300 prose-code:bg-black/30 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-xs
+              prose-pre:bg-black/40 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-xl
+              prose-a:text-orange-400 prose-a:no-underline hover:prose-a:underline
+              prose-li:my-0.5
+              prose-ul:my-2 prose-ol:my-2
+              prose-blockquote:border-orange-500/30 prose-blockquote:text-white/60
+              prose-hr:border-white/10
+              prose-table:text-sm
+              prose-th:text-orange-300 prose-th:border-white/10
+              prose-td:border-white/10
+            ">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ node, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    const codeString = String(children).replace(/\n$/, "");
+
+                    if (match) {
+                      return (
+                        <CodeBlock
+                          language={match[1]}
+                          code={codeString}
+                        />
+                      );
+                    }
+
+                    return (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </div>
+          )}
+        </div>
+
+        {/* ============================================
+            [FIX #5] COPY BUTTON - Only for AI messages
+            Shows on hover with smooth transition
+            ============================================ */}
+        {!isUser && (
+          <div className="mt-1.5 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <CopyButton text={message.content} />
+
+            {/* Optional: Additional action buttons */}
+            <button
+              onClick={() => {
+                // Regenerate functionality placeholder
+                console.log("Regenerate message:", message.id);
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium
+                bg-white/5 border border-white/10 text-white/40
+                hover:bg-orange-500/10 hover:border-orange-500/20 hover:text-orange-400
+                transition-all duration-200"
+              title="Buat ulang jawaban"
+            >
+              <svg
+                className="w-3 h-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              Ulangi
+            </button>
+          </div>
+        )}
+
+        {/* Timestamp for user messages */}
+        {isUser && (
+          <span className="text-[10px] text-white/25 mt-1 mr-1">
+            {new Date(message.timestamp).toLocaleTimeString("id-ID", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// Message List (Main Export)
+// ============================================
+interface MessageListProps {
+  messages: Message[];
+  isLoading: boolean;
+}
+
+export function MessageList({ messages, isLoading }: MessageListProps) {
+  return (
+    <div className="space-y-1">
+      {messages.map((message) => (
+        <MessageBubble key={message.id} message={message} />
+      ))}
+
+      {/* Typing indicator when AI is processing */}
+      {isLoading && <TypingIndicator />}
     </div>
   );
 }

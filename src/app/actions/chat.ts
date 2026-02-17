@@ -1,62 +1,90 @@
-'use server';
+// src/app/actions/chat.ts
+"use server";
 
-import { createClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
+import type { ModelType, Message } from "@/types";
 
-export async function getUserChats(userId: string) {
-  const supabase = createClient();
-  
-  const { data, error } = await supabase
-    .from('chats')
-    .select('*')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
-
-  if (error) throw new Error('Failed to fetch chats');
-  return data || [];
+interface SendMessageResponse {
+  content?: string;
+  error?: string;
+  cost?: number;
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
-export async function getChatMessages(chatId: string) {
-  const supabase = createClient();
-  
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('chat_id', chatId)
-    .order('created_at', { ascending: true });
+export async function sendMessage(
+  model: ModelType,
+  message: string,
+  history: Message[],
+  files?: File[]
+): Promise<SendMessageResponse> {
+  try {
+    // Build API URL
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000";
 
-  if (error) throw new Error('Failed to fetch messages');
-  return data || [];
-}
+    // Format history for API
+    const formattedHistory = history.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }));
 
-export async function createChat(userId: string, title: string, model: string) {
-  const supabase = createClient();
-  
-  const { data, error } = await supabase
-    .from('chats')
-    .insert({ user_id: userId, title, default_model: model })
-    .select('id')
-    .single();
+    console.log(`[Action] Sending to ${model}: ${message.substring(0, 80)}...`);
 
-  if (error || !data) throw new Error('Failed to create chat');
-  
-  revalidatePath('/chat');
-  return data.id;
-}
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        message,
+        history: formattedHistory,
+      }),
+    });
 
-export async function saveMessage(message: any, chatId: string) {
-  const supabase = createClient();
-  
-  const { error } = await supabase.from('messages').insert({
-    chat_id: chatId,
-    role: message.role,
-    content: message.content,
-    model: message.model,
-    input_tokens: message.tokens?.input,
-    output_tokens: message.tokens?.output,
-    cost_usd: message.cost,
-    files: message.files || [],
-  });
+    const data = await response.json();
 
-  if (error) throw new Error('Failed to save message');
+    if (!response.ok) {
+      console.error(`[Action] API Error:`, data);
+      return {
+        error:
+          data.error ||
+          `Server error (${response.status}): Gagal mendapatkan respons dari ${model}`,
+      };
+    }
+
+    if (!data.content) {
+      return {
+        error: `${model} mengembalikan respons kosong. Coba lagi atau ganti model.`,
+      };
+    }
+
+    return {
+      content: data.content,
+      cost: data.cost,
+      inputTokens: data.inputTokens,
+      outputTokens: data.outputTokens,
+    };
+  } catch (error: any) {
+    console.error(`[Action]
+        console.error(`[Action] Exception:`, error.message);
+
+    // Handle specific error types
+    if (error.message?.includes("fetch failed") || error.message?.includes("ECONNREFUSED")) {
+      return {
+        error: "Tidak dapat terhubung ke server. Pastikan server berjalan.",
+      };
+    }
+
+    if (error.message?.includes("timeout") || error.name === "AbortError") {
+      return {
+        error: `Timeout: ${model} terlalu lama merespon. Coba lagi atau gunakan model lain.`,
+      };
+    }
+
+    return {
+      error: error.message || "Terjadi kesalahan yang tidak diketahui",
+    };
+  }
 }

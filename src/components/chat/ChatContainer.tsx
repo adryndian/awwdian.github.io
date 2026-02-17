@@ -1,335 +1,319 @@
-'use client';
+// src/components/chat/ChatContainer.tsx
+"use client";
 
-import { useState, useCallback } from 'react';
-import { Sidebar } from '../layout/Sidebar';
-import { MessageList } from './MessageList';
-import { InputArea } from './InputArea';
-import { CostToast } from './CostToast';
-import { Message, ChatSession, UsageInfo, ModelId } from '@/types';
-import { DEFAULT_MODEL } from '@/lib/models/config';
-import { v4 as uuidv4 } from 'uuid';
-import { getUserChats, getChatMessages, createChat, saveMessage } from '@/app/actions/chat';
-import { posthog } from '@/lib/posthog';
-import { createClient } from '@/lib/supabase/client';
+import { useState, useRef, useEffect, useCallback } from "react";
+import { MessageList } from "./MessageList";
+import { InputArea } from "./InputArea";
+import { ModelSelector } from "./ModelSelector";
+import { CostToast } from "./CostToast";
+import { sendMessage } from "@/app/actions/chat";
+import type { Message, ModelType } from "@/types";
 
-interface ChatContainerProps { userId: string; }
+// ============================================
+// [FIX #2] AI Activity Status Types
+// ============================================
+type AiStatus =
+  | "idle"
+  | "connecting"
+  | "thinking"
+  | "generating"
+  | "error";
 
-interface PendingFile {
-  id: string; name: string; type: string; size: number; data: string;
-}
+const STATUS_LABELS: Record<AiStatus, string> = {
+  idle: "",
+  connecting: "Menghubungi",
+  thinking: "Sedang berpikir",
+  generating: "Menulis jawaban",
+  error: "Terjadi kesalahan",
+};
 
-export function ChatContainer({ userId }: ChatContainerProps) {
-  const [messages,       setMessages]       = useState<Message[]>([]);
-  const [input,          setInput]          = useState('');
-  const [isLoading,      setIsLoading]      = useState(false);
-  const [selectedModel,  setSelectedModel]  = useState<ModelId>(DEFAULT_MODEL);
-  const [currentChatId,  setCurrentChatId]  = useState<string | null>(null);
-  const [lastUsage,      setLastUsage]      = useState<UsageInfo | null>(null);
-  const [chats,          setChats]          = useState<ChatSession[]>([]);
-  const [pendingFiles,   setPendingFiles]   = useState<PendingFile[]>([]);
-  const [chatsLoading,   setChatsLoading]   = useState(false);
+const MODEL_DISPLAY_NAMES: Record<ModelType, string> = {
+  claude: "Claude 3.5 Sonnet",
+  llama: "LLaMA 3.1",
+  deepseek: "DeepSeek R1",
+};
 
-  const refreshChats = useCallback(async () => {
-    setChatsLoading(true);
-    try {
-      const data = await getUserChats(userId);
-      setChats(
-        data.map((c: any) => ({
-          id: c.id,
-          title: c.title,
-          messages: [],
-          defaultModel: c.default_model,
-          createdAt: new Date(c.created_at),
-          updatedAt: new Date(c.updated_at),
-        }))
-      );
-    } catch (err) {
-      console.error('Failed to load chats:', err);
-      posthog.capture('chats_load_error', { error: String(err) });
-    } finally {
-      setChatsLoading(false);
-    }
-  }, [userId]);
+export default function ChatContainer() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ModelType>("claude");
+  const [cost, setCost] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleNewChat = useCallback(() => {
-    posthog.capture('new_chat_clicked', { previousChatId: currentChatId });
-    setMessages([]);
-    setCurrentChatId(null);
-    setInput('');
-    setLastUsage(null);
-    setPendingFiles([]);
-  }, [currentChatId]);
+  // [FIX #2] AI activity status
+  const [aiStatus, setAiStatus] = useState<AiStatus>("idle");
 
-  const handleDeleteChat = useCallback(async (chatId: string) => {
-    posthog.capture('chat_delete_initiated', { chatId });
-    if (currentChatId === chatId) {
-      setMessages([]); setCurrentChatId(null); setInput(''); setLastUsage(null); setPendingFiles([]);
-    }
-    try {
-      const supabase = createClient();
-      const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chatId);
-      if (msgErr) throw msgErr;
-      const { error: chatErr } = await supabase.from('chats').delete().eq('id', chatId);
-      if (chatErr) throw chatErr;
-      posthog.capture('chat_deleted_success', { chatId });
-      await refreshChats();
-    } catch (err) {
-      console.error('Delete chat error:', err);
-      posthog.capture('chat_deleted_error', { chatId, error: String(err) });
-      throw err;
-    }
-  }, [currentChatId, refreshChats]);
+  // [FIX #1] Ref for auto-scroll
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleSelectChat = useCallback(async (chat: ChatSession) => {
-    posthog.capture('chat_selected', { chatId: chat.id, model: chat.defaultModel });
-    setCurrentChatId(chat.id);
-    setSelectedModel((chat.defaultModel || DEFAULT_MODEL) as ModelId);
-    setIsLoading(true);
-    try {
-      const msgs = await getChatMessages(chat.id);
-      setMessages(
-        msgs.map((m: any) => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          timestamp: new Date(m.created_at),
-          model: m.model,
-          tokens: m.input_tokens ? { input: m.input_tokens, output: m.output_tokens } : undefined,
-          cost: m.cost_usd,
-          files: m.files || [],
-        }))
-      );
-    } catch (err) {
-      console.error('Load messages error:', err);
-      posthog.capture('messages_load_error', { chatId: chat.id, error: String(err) });
-    } finally {
-      setIsLoading(false);
+  // [FIX #1] Auto-scroll to bottom when new message arrives
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
     }
   }, []);
 
-  const handleSend = async (files?: PendingFile[]) => {
-    const trimmed = input.trim();
-    if (!trimmed && (!files || files.length === 0)) return;
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
-    const t0 = Date.now();
-    posthog.capture('message_sent', {
-      model: selectedModel,
-      messageLength: trimmed.length,
-      hasAttachments: !!(files?.length),
-      isNewChat: !currentChatId,
-    });
-
-    let chatId = currentChatId;
-
-    if (!chatId) {
-      try {
-        const title = trimmed.slice(0, 60) || 'Chat Baru';
-        chatId = await createChat(userId, title, selectedModel);
-        setCurrentChatId(chatId);
-        posthog.capture('chat_created', { chatId, model: selectedModel });
-        await refreshChats();
-      } catch (err) {
-        console.error('Create chat error:', err);
-        posthog.capture('chat_creation_error', { error: String(err) });
-        return;
-      }
+  // Also scroll when loading state changes (indicator appears/disappears)
+  useEffect(() => {
+    if (isLoading) {
+      scrollToBottom();
     }
+  }, [isLoading, scrollToBottom]);
 
-    if (!chatId) return;
+  const handleSendMessage = async (
+    content: string,
+    files?: File[]
+  ) => {
+    setError(null);
 
-    const userMsg: Message = {
-      id: uuidv4(),
-      role: 'user',
-      content: trimmed,
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content,
       timestamp: new Date(),
-      files: files?.map((f) => ({ name: f.name, content: f.data, extension: f.name.split('.').pop() || '' })),
+      model: selectedModel,
     };
-    setMessages((p) => [...p, userMsg]);
-    setInput('');
-    setPendingFiles([]);
+
+    setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
-    try { await saveMessage(userMsg, chatId); }
-    catch (e) { console.error('Save user msg failed:', e); }
-
-    const aId = uuidv4();
-    setMessages((p) => [...p, {
-      id: aId, role: 'assistant', content: '', timestamp: new Date(),
-      model: selectedModel, isStreaming: true,
-    }]);
-
-    const apiMessages = [...messages, userMsg]
-      .filter((m) => m.content?.trim().length > 0)
-      .map((m) => ({
-        role: m.role,
-        content: m.files?.length
-          ? `${m.content}\n\n[Lampiran]\n${m.files.map((f) => `### ${f.name}\n${f.content}`).join('\n\n')}`
-          : m.content,
-      }));
+    // [FIX #2] Stage 1: Connecting
+    setAiStatus("connecting");
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages, model: selectedModel }),
-      });
+      // [FIX #2] Stage 2: Thinking
+      await new Promise((r) => setTimeout(r, 500));
+      setAiStatus("thinking");
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'API error' }));
-        throw new Error(err.error || `HTTP ${res.status}`);
-      }
-
-      const isStreaming = res.headers.get('Content-Type')?.includes('text/event-stream');
-      let responseText = '';
-      let usage: UsageInfo | null = null;
-      let firstChunk: number | null = null;
-      let chunkCount = 0;
-
-      if (isStreaming) {
-        const reader = res.body!.getReader();
-        const dec = new TextDecoder();
-        let buf = '';
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buf += dec.decode(value, { stream: true });
-          const lines = buf.split('\n');
-          buf = lines.pop() ?? '';
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const payload = line.slice(6).trim();
-            if (payload === '[DONE]') break;
-            try {
-              const parsed = JSON.parse(payload);
-              if (parsed.error) throw new Error(parsed.error);
-              if (parsed.content) {
-                if (firstChunk === null) {
-                  firstChunk = Date.now();
-                  posthog.capture('first_chunk_received', {
-                    model: selectedModel, ttfb: firstChunk - t0,
-                  });
-                }
-                chunkCount++;
-                responseText += parsed.content;
-                setMessages((p) =>
-                  p.map((m) => m.id === aId ? { ...m, content: responseText, isStreaming: true } : m)
-                );
-              }
-              if (parsed.usage) {
-                usage = { model: selectedModel, ...parsed.usage };
-              }
-            } catch { /* skip malformed */ }
-          }
-        }
-      } else {
-        const data = await res.json();
-        responseText = data.content ?? '';
-        if (data.usage) usage = { model: selectedModel, ...data.usage };
-      }
-
-      const finalMsg: Message = {
-        id: aId, role: 'assistant',
-        content: responseText || '*(Tidak ada respons)*',
-        timestamp: new Date(), model: selectedModel, isStreaming: false,
-        tokens: usage ? { input: usage.inputTokens, output: usage.outputTokens } : undefined,
-        cost: usage?.costUSD,
-      };
-      setMessages((p) => p.map((m) => m.id === aId ? finalMsg : m));
-      if (usage) setLastUsage(usage);
-
-      posthog.capture('response_received', {
-        model: selectedModel, isStreaming,
-        inputTokens: usage?.inputTokens ?? 0,
-        outputTokens: usage?.outputTokens ?? 0,
-        cost: usage?.costUSD ?? 0,
-        responseLength: responseText.length,
-        duration: Date.now() - t0,
-        ttfb: firstChunk ? firstChunk - t0 : Date.now() - t0,
-        chunkCount,
-      });
-
-      if (responseText.trim()) {
-        try { await saveMessage(finalMsg, chatId); await refreshChats(); }
-        catch (e) { console.error('Save assistant msg failed:', e); }
-      }
-
-    } catch (err) {
-      console.error('Chat error:', err);
-      const msg = err instanceof Error ? err.message : 'Terjadi kesalahan';
-      posthog.capture('chat_error', { model: selectedModel, error: msg });
-      setMessages((p) =>
-        p.map((m) => m.id === aId
-          ? { ...m, content: `Maaf, terjadi kesalahan: ${msg}. Silakan coba lagi.`, isStreaming: false }
-          : m
-        )
+      const response = await sendMessage(
+        selectedModel,
+        content,
+        messages,
+        files
       );
+
+      // [FIX #2] Stage 3: Generating
+      setAiStatus("generating");
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      const aiMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: response.content || "Maaf, tidak ada respons.",
+        timestamp: new Date(),
+        model: selectedModel,
+        cost: response.cost,
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+
+      if (response.cost) {
+        setCost(response.cost);
+        setTimeout(() => setCost(null), 5000);
+      }
+    } catch (err: any) {
+      setAiStatus("error");
+      const errorMsg = err.message || "Terjadi kesalahan";
+      setError(errorMsg);
+
+      const errorMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `⚠️ **Error:** ${errorMsg}`,
+        timestamp: new Date(),
+        model: selectedModel,
+      };
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleModelChange = (modelId: ModelId) => {
-    setSelectedModel(modelId);
-    if (messages.length > 0) {
-      posthog.capture('model_changed_mid_conversation', {
-        newModel: modelId, messageCount: messages.length, chatId: currentChatId,
-      });
+      // Small delay before clearing status so user sees final state
+      setTimeout(() => setAiStatus("idle"), 800);
     }
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      <Sidebar
-        userId={userId}
-        chats={chats}
-        currentChatId={currentChatId}
-        onSelectChat={handleSelectChat}
-        onNewChat={handleNewChat}
-        onDeleteChat={handleDeleteChat}
-        isLoading={chatsLoading}
-      />
+    <>
+      {/* ============================================
+          [FIX #1] CRITICAL LAYOUT FIX
+          - h-full + flex + flex-col = full height container
+          - overflow-hidden on shell prevents double scroll
+          ============================================ */}
+      <div className="flex flex-col h-full overflow-hidden">
 
-      <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
-
-        {/* HEADER: hanya branding + hamburger spacer di mobile.
-            ModelSelector sudah dipindah ke InputArea. */}
-        <header className="h-14 sm:h-16 glass-dark border-b border-white/8 flex items-center px-4 lg:px-5 shrink-0 z-20">
-          {/* Spacer kiri untuk hamburger mobile button (dari Sidebar.tsx) */}
-          <div className="w-10 shrink-0 lg:hidden" />
-
-          {/* App title — center di mobile, left di desktop */}
-          <div className="flex-1 flex items-center justify-center lg:justify-start">
-            <span className="text-sm font-semibold text-white/70 tracking-wide">
-              BeckRock AI
-            </span>
+        {/* Header with Model Selector */}
+        <header className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/30 backdrop-blur-xl">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center shadow-lg shadow-orange-500/20">
+              <span className="text-white font-bold text-sm">B</span>
+            </div>
+            <div>
+              <h1 className="text-white font-bold text-sm leading-tight">
+                Beckrock AI
+              </h1>
+              <p className="text-white/40 text-[11px]">
+                Multi-Model Chat
+              </p>
+            </div>
           </div>
+          <ModelSelector
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+            disabled={isLoading}
+          />
         </header>
 
-        {/* MESSAGES: overflow handled inside MessageList */}
-        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-          <MessageList messages={messages} isLoading={isLoading} />
+        {/* ============================================
+            [FIX #2] AI ACTIVITY TOAST / INDICATOR
+            Shows what AI is currently doing
+            ============================================ */}
+        {aiStatus !== "idle" && (
+          <div
+            className={`
+              flex-shrink-0 flex items-center gap-3 px-4 py-2
+              border-b transition-all duration-300 animate-in slide-in-from-top-2
+              ${aiStatus === "error"
+                ? "bg-red-500/5 border-red-500/10"
+                : "bg-orange-500/5 border-orange-500/10"
+              }
+            `}
+          >
+            {/* Spinner or Error Icon */}
+            {aiStatus === "error" ? (
+              <div className="w-4 h-4 rounded-full bg-red-500/20 flex items-center justify-center">
+                <span className="text-red-400 text-[10px]">✕</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
+              </div>
+            )}
+
+            {/* Status Text */}
+            <span
+              className={`text-xs font-medium ${
+                aiStatus === "error" ? "text-red-400" : "text-orange-400"
+              }`}
+            >
+              <strong>{MODEL_DISPLAY_NAMES[selectedModel]}</strong>
+              {" -- "}
+              {STATUS_LABELS[aiStatus]}...
+            </span>
+          </div>
+        )}
+
+        {/* ============================================
+            [FIX #1] CHAT MESSAGES AREA
+            CRITICAL: min-h-0 allows flex child to scroll
+            flex-1 takes remaining space
+            overflow-y-auto enables scrolling
+            ============================================ */}
+        <div
+          ref={chatContainerRef}
+          className="flex-1 min-h-0 overflow-y-auto"
+        >
+          <div className="px-4 py-4">
+            {messages.length === 0 ? (
+              <WelcomeScreen onQuickAction={handleSendMessage} />
+            ) : (
+              <MessageList messages={messages} isLoading={isLoading} />
+            )}
+
+            {/* [FIX #1] Scroll anchor - MUST be inside scrollable area */}
+            <div ref={messagesEndRef} className="h-4" />
+          </div>
         </div>
 
-        {/* INPUT AREA: fixed bottom, includes ModelSelector + larger send button */}
-        <InputArea
-          value={input}
-          onChange={setInput}
-          onSend={handleSend}
-          isLoading={isLoading}
-          disabled={isLoading}
-          pendingFiles={pendingFiles}
-          onAddFiles={(f) => setPendingFiles((p) => [...p, ...f])}
-          onRemoveFile={(id) => setPendingFiles((p) => p.filter((f) => f.id !== id))}
-          selectedModel={selectedModel}
-          onModelChange={handleModelChange}
-        />
-      </main>
+        {/* ============================================
+            [FIX #1] INPUT AREA
+            flex-shrink-0 = never collapse
+            position: relative (NOT fixed/absolute)
+            Always visible at bottom
+            ============================================ */}
+        <div className="flex-shrink-0">
+          <InputArea
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
+            selectedModel={selectedModel}
+          />
+        </div>
+      </div>
 
-      {lastUsage && (
-        <CostToast usage={lastUsage} onClose={() => setLastUsage(null)} />
+      {/* Cost Toast */}
+      {cost !== null && <CostToast cost={cost} />}
+
+      {/* Error Toast */}
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 backdrop-blur-xl animate-in slide-in-from-top-4">
+          <p className="text-red-400 text-sm">{error}</p>
+        </div>
       )}
+    </>
+  );
+}
+
+// ============================================
+// Welcome Screen Component
+// ============================================
+function WelcomeScreen({
+  onQuickAction,
+}: {
+  onQuickAction: (msg: string) => void;
+}) {
+  const suggestions = [
+    "Jelaskan tentang AWS Bedrock",
+    "Buatkan kode React component",
+    "Apa itu machine learning?",
+    "Bantu saya debug kode ini",
+  ];
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+      <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center mb-6 shadow-2xl shadow-orange-500/25">
+        <span className="text-4xl">🤖</span>
+      </div>
+      <h2 className="text-white text-xl font-bold mb-2">
+        Selamat Datang di Beckrock AI
+      </h2>
+      <p className="text-white/50 text-sm max-w-md mb-8">
+        Chat dengan berbagai model AI -- Claude, LLaMA, dan DeepSeek.
+        Pilih model di kanan atas untuk memulai.
+      </p>
+      <div className="flex flex-wrap gap-2 justify-center max-w-lg">
+        {suggestions.map((text) => (
+          <button
+            key={text}
+            onClick={() => onQuickAction(text)}
+            className="px-4 py-2 bg-orange-500/8 border border-orange-500/15
+              rounded-full text-orange-400 text-xs font-medium
+              hover:bg-orange-500/15 hover:border-orange-500/25
+              transition-all duration-200 hover:-translate-y-0.5"
+          >
+            {text}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

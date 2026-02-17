@@ -1,166 +1,218 @@
 // src/lib/bedrock/deepseek.ts
-//
-// ROOT CAUSE ERROR:
-// "No content generated! The model may be unavailable or rate limited."
-//
-// Kemungkinan penyebab:
-// 1. Menggunakan InvokeModel dengan format body yang salah untuk DeepSeek R1
-// 2. Response stream tidak di-parse dengan benar (DeepSeek R1 punya <think> tag)
-// 3. Model mungkin sedang throttled
-//
-// FIX:
-// 1. Ganti ke ConverseStreamCommand (sama seperti Llama fix)
-// 2. Handle <think>...</think> tags dari DeepSeek R1 (chain-of-thought reasoning)
-//    — strip dari output atau optionally tampilkan
-
 import {
   BedrockRuntimeClient,
-  ConverseStreamCommand,
-} from '@aws-sdk/client-bedrock-runtime';
+  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
+import { getBedrockClient } from "./client";
 
-const client = new BedrockRuntimeClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+// ============================================
+// DeepSeek Model Configuration
+// ============================================
+const DEEPSEEK_MODELS = {
+  primary: "deepseek.deepseek-r1-distill-llama-70b",
+  fallback: "deepseek.deepseek-r1-distill-llama-8b",
+} as const;
 
-// Model ID DeepSeek R1 di AWS Bedrock
-const DEEPSEEK_MODEL_ID = 'deepseek.r1-v1:0';
-
-interface Message {
-  role: 'user' | 'assistant';
+interface DeepSeekMessage {
+  role: "user" | "assistant" | "system";
   content: string;
 }
 
-type StreamReturn = AsyncGenerator<
-  string,
-  { inputTokens: number; outputTokens: number; costUSD: number }
->;
-
-// Pricing DeepSeek R1 on Bedrock (USD per 1000 tokens)
-const COST_PER_1K_INPUT  = 0.00055;
-const COST_PER_1K_OUTPUT = 0.00219;
-
-// DeepSeek R1 mengeluarkan <think>...</think> untuk chain-of-thought.
-// Kita buffer dan skip bagian thinking, hanya stream final answer.
-function stripThinkingTags(text: string): string {
-  return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+interface DeepSeekResponse {
+  content: string;
+  inputTokens: number;
+  outputTokens: number;
+  thinkingContent?: string;
 }
 
-export async function* streamDeepSeek(messages: Message[]): StreamReturn {
-  console.log('[DeepSeek] Starting Converse stream, messages:', messages.length);
+// ============================================
+// Build Payload - Messages format
+// ============================================
+function buildMessagesPayload(
+  messages: DeepSeekMessage[],
+  maxTokens: number = 4096,
+  temperature: number = 0.7
+) {
+  return {
+    messages: messages.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    })),
+    max_tokens: maxTokens,
+    temperature,
+    top_p: 0.9,
+  };
+}
 
-  const converseMessages = messages.map((m) => ({
-    role: m.role as 'user' | 'assistant',
-    content: [{ text: m.content }],
-  }));
-
-  const command = new ConverseStreamCommand({
-    modelId: DEEPSEEK_MODEL_ID,
-    messages: converseMessages,
-    inferenceConfig: {
-      maxTokens: 8192,
-      temperature: 0.7,
-      topP: 0.95,
-    },
-  });
-
-  let inputTokens  = 0;
-  let outputTokens = 0;
-  let totalContent = '';
-  let thinkingBuffer = '';
-  let insideThinking = false;
-
-  try {
-    const response = await client.send(command);
-
-    if (!response.stream) {
-      throw new Error('DeepSeek did not return a stream');
+// ============================================
+// Build Payload - Prompt format (fallback)
+// Some Bedrock DeepSeek models use raw prompt
+// ============================================
+function buildPromptPayload(
+  messages: DeepSeekMessage[],
+  maxTokens: number = 4096,
+  temperature: number = 0.7
+) {
+  let prompt = "";
+  for (const msg of messages) {
+    if (msg.role === "system") {
+      prompt += `<|system|>\n${msg.content}\n`;
+    } else if (msg.role === "user") {
+      prompt += `<|user|>\n${msg.content}\n`;
+    } else if (msg.role === "assistant") {
+      prompt += `<|assistant|>\n${msg.content}\n`;
     }
-
-    for await (const event of response.stream) {
-      if (event.contentBlockDelta?.delta?.text) {
-        const chunk = event.contentBlockDelta.delta.text;
-        thinkingBuffer += chunk;
-
-        // Handle <think> tags streaming — buffer sampai tag lengkap
-        let processed = '';
-        let tempBuf = thinkingBuffer;
-
-        // State machine sederhana untuk skip <think>...</think> blocks
-        while (tempBuf.length > 0) {
-          if (insideThinking) {
-            const closeIdx = tempBuf.indexOf('</think>');
-            if (closeIdx !== -1) {
-              insideThinking = false;
-              tempBuf = tempBuf.slice(closeIdx + '</think>'.length);
-              thinkingBuffer = tempBuf;
-            } else {
-              // Masih di dalam thinking block, skip semua
-              break;
-            }
-          } else {
-            const openIdx = tempBuf.indexOf('<think>');
-            if (openIdx !== -1) {
-              // Ada bagian sebelum <think>, itu output real
-              processed += tempBuf.slice(0, openIdx);
-              insideThinking = true;
-              tempBuf = tempBuf.slice(openIdx + '<think>'.length);
-              thinkingBuffer = tempBuf;
-            } else {
-              // Tidak ada thinking tag, check apakah ada partial tag di akhir
-              const partialStart = tempBuf.lastIndexOf('<');
-              if (partialStart !== -1 && partialStart > tempBuf.length - 10) {
-                // Kemungkinan partial tag, buffer dulu
-                processed += tempBuf.slice(0, partialStart);
-                thinkingBuffer = tempBuf.slice(partialStart);
-              } else {
-                processed += tempBuf;
-                thinkingBuffer = '';
-              }
-              break;
-            }
-          }
-        }
-
-        if (processed.length > 0) {
-          totalContent += processed;
-          yield processed;
-        }
-      }
-
-      if (event.metadata?.usage) {
-        inputTokens  = event.metadata.usage.inputTokens  ?? 0;
-        outputTokens = event.metadata.usage.outputTokens ?? 0;
-      }
-
-      if (event.messageStop) {
-        console.log('[DeepSeek] Stream complete, stopReason:', event.messageStop.stopReason);
-        // Flush sisa buffer jika ada konten di luar thinking
-        if (thinkingBuffer && !insideThinking) {
-          totalContent += thinkingBuffer;
-          yield thinkingBuffer;
-          thinkingBuffer = '';
-        }
-      }
-    }
-
-    if (!totalContent) {
-      throw new Error('DeepSeek did not generate any content. The model may be unavailable or rate limited.');
-    }
-
-    const costUSD =
-      (inputTokens  / 1000) * COST_PER_1K_INPUT +
-      (outputTokens / 1000) * COST_PER_1K_OUTPUT;
-
-    console.log('[DeepSeek] Done:', { inputTokens, outputTokens, costUSD: costUSD.toFixed(6) });
-
-    return { inputTokens, outputTokens, costUSD };
-
-  } catch (err) {
-    console.error('[DeepSeek] Stream error:', err);
-    throw err;
   }
+  prompt += `<|assistant|>\n`;
+
+  return {
+    prompt,
+    max_tokens: maxTokens,
+    temperature,
+    top_p: 0.9,
+  };
+}
+
+// ============================================
+// Parse Response - handles multiple formats
+// ============================================
+function parseDeepSeekResponse(responseBody: any): DeepSeekResponse {
+  // Format 1: Messages API response (choices array)
+  if (responseBody.choices && responseBody.choices.length > 0) {
+    const choice = responseBody.choices[0];
+    return {
+      content:
+        choice.message?.content ||
+        choice.text ||
+        "",
+      inputTokens: responseBody.usage?.prompt_tokens || 0,
+      outputTokens: responseBody.usage?.completion_tokens || 0,
+      thinkingContent: choice.message?.reasoning_content || undefined,
+    };
+  }
+
+  // Format 2: Direct generation response
+  if (responseBody.generation) {
+    return {
+      content: responseBody.generation,
+      inputTokens: responseBody.prompt_token_count || 0,
+      outputTokens: responseBody.generation_token_count || 0,
+    };
+  }
+
+  // Format 3: Completion response
+  if (responseBody.completions && responseBody.completions.length > 0) {
+    return {
+      content: responseBody.completions[0].data?.text || "",
+      inputTokens: 0,
+      outputTokens: 0,
+    };
+  }
+
+  // Format 4: Direct output
+  if (responseBody.output || responseBody.text || responseBody.content) {
+    return {
+      content:
+        responseBody.output ||
+        responseBody.text ||
+        responseBody.content ||
+        "",
+      inputTokens: 0,
+      outputTokens: 0,
+    };
+  }
+
+  // Format 5: Raw string response
+  if (typeof responseBody === "string") {
+    return {
+      content: responseBody,
+      inputTokens: 0,
+      outputTokens: 0,
+    };
+  }
+
+  console.error(
+    "Unknown DeepSeek response format:",
+    JSON.stringify(responseBody, null, 2)
+  );
+  throw new Error(
+    "Format respons DeepSeek tidak dikenali. Response: " +
+      JSON.stringify(responseBody).substring(0, 200)
+  );
+}
+
+// ============================================
+// Main: Invoke DeepSeek
+// Tries primary model, falls back if needed
+// ============================================
+export async function invokeDeepSeek(
+  messages: DeepSeekMessage[],
+  maxTokens: number = 4096,
+  temperature: number = 0.7
+): Promise<DeepSeekResponse> {
+  const client = getBedrockClient();
+
+  // Try models in order
+  const modelsToTry = [
+    DEEPSEEK_MODELS.primary,
+    DEEPSEEK_MODELS.fallback,
+  ];
+
+  // Try payload formats
+  const payloadBuilders = [
+    buildMessagesPayload,
+    buildPromptPayload,
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const modelId of modelsToTry) {
+    for (const buildPayload of payloadBuilders) {
+      try {
+        const payload = buildPayload(messages, maxTokens, temperature);
+
+        console.log(`[DeepSeek] Trying model: ${modelId}`);
+        console.log(`[DeepSeek] Payload format: ${buildPayload.name}`);
+        console.log(`[DeepSeek] Payload:`, JSON.stringify(payload).substring(0, 300));
+
+        const command = new InvokeModelCommand({
+          modelId,
+          contentType: "application/json",
+          accept: "application/json",
+          body: JSON.stringify(payload),
+        });
+
+        const response = await client.send(command);
+        const responseText = new TextDecoder().decode(response.body);
+
+        console.log(`[DeepSeek] Raw response:`, responseText.substring(0, 500));
+
+        const responseBody = JSON.parse(responseText);
+        const parsed = parseDeepSeekResponse(responseBody);
+
+        if (parsed.content && parsed.content.trim().length > 0) {
+          console.log(`[DeepSeek] Success with ${modelId} + ${buildPayload.name}`);
+          return parsed;
+        }
+
+        console.warn(`[DeepSeek] Empty response from ${modelId}, trying next...`);
+      } catch (err: any) {
+        lastError = err;
+        console.warn(
+          `[DeepSeek] Failed with ${modelId} + ${buildPayload.name}:`,
+          err.message
+        );
+        continue;
+      }
+    }
+  }
+
+  // All attempts failed
+  throw new Error(
+    `DeepSeek gagal merespon setelah mencoba semua model dan format. ` +
+      `Error terakhir: ${lastError?.message || "Unknown"}. ` +
+      `Pastikan model DeepSeek sudah di-enable di AWS Bedrock Console ` +
+      `(region: ${process.env.AWS_REGION || "us-east-1"}).`
+  );
 }

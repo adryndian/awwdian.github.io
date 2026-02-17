@@ -1,8 +1,6 @@
-import { redirect } from 'next/navigation';
-// Tambahkan baris ini setelah semua import
-export const dynamic = 'force-dynamic';
+// src/app/chat/page.tsx
+import ChatContainer from "@/components/chat/ChatContainer";
 
-
-export default function Home() {
-  redirect('/login');
+export default function ChatPage() {
+  return <ChatContainer />;
 }

@@ -1,78 +1,79 @@
-import { ModelId } from '@/types';
+// src/lib/models/config.ts
+import type { ModelType, ModelConfig } from "@/types";
 
-export interface ModelConfig {
-  id: ModelId;
-  name: string;
-  description: string;
-  bedrockId: string;
-  region: string;
-  supportsStreaming: boolean;
-  inputPricePer1K: number;
-  outputPricePer1K: number;
-  color: string;
-  icon: string;
-}
-
-export const MODELS: Record<ModelId, ModelConfig> = {
-  'claude-sonnet-4-5': {
-    id: 'claude-sonnet-4-5',
-    name: 'Claude Sonnet 4.5',
-    description: 'Balanced performance & speed',
-    // Global Inference Profile ID dari AWS Bedrock console
-    bedrockId: 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
-    region: 'us-west-2',
-    supportsStreaming: false,
-    inputPricePer1K: 3.0,
-    outputPricePer1K: 15.0,
-    color: '#3B82F6',
-    icon: 'zap',
+export const MODEL_CONFIGS: Record<ModelType, ModelConfig> = {
+  claude: {
+    id: "claude",
+    name: "Claude 3.5 Sonnet",
+    description: "Analisis mendalam, penulisan, dan coding",
+    maxTokens: 4096,
+    costPer1kInput: 0.003,
+    costPer1kOutput: 0.015,
+    available: true,
   },
-  'claude-opus-4-6': {
-    id: 'claude-opus-4-6',
-    name: 'Claude Opus 4.6',
-    description: 'Most powerful reasoning',
-    // Global Inference Profile ID dari AWS Bedrock console
-    bedrockId: 'global.anthropic.claude-opus-4-6-v1',
-    region: 'us-west-2',
-    supportsStreaming: false,
-    inputPricePer1K: 15.0,
-    outputPricePer1K: 75.0,
-    color: '#8B5CF6',
-    icon: 'brain',
+  llama: {
+    id: "llama",
+    name: "LLaMA 3.1",
+    description: "Open-source, cepat, dan efisien",
+    maxTokens: 2048,
+    costPer1kInput: 0.00099,
+    costPer1kOutput: 0.00099,
+    available: true,
   },
-  'deepseek-r1': {
-    id: 'deepseek-r1',
-    name: 'DeepSeek R1',
-    description: 'Fast & cost-effective streaming',
-    // US Inference Profile ID dari AWS Bedrock console
-    bedrockId: 'us.deepseek.r1-v1:0',
-    region: 'us-west-2',
-    supportsStreaming: true,
-    inputPricePer1K: 0.5,
-    outputPricePer1K: 2.0,
-    color: '#10B981',
-    icon: 'cpu',
-  },
-  'llama-4-maverick': {
-    id: 'llama-4-maverick',
-    name: 'Llama 4 Maverick',
-    description: 'Meta Llama 4 17B Instruct',
-    // US Inference Profile ID dari AWS Bedrock console
-    bedrockId: 'us.meta.llama4-maverick-17b-instruct-v1:0',
-    region: 'us-west-2',
-    supportsStreaming: true,
-    inputPricePer1K: 0.19,
-    outputPricePer1K: 0.19,
-    color: '#F59E0B',
-    icon: 'flame',
+  deepseek: {
+    id: "deepseek",
+    name: "DeepSeek R1",
+    description: "Reasoning dan coding tingkat lanjut",
+    maxTokens: 4096,
+    costPer1kInput: 0.0014,
+    costPer1kOutput: 0.0014,
+    available: true,
   },
 };
 
-export const DEFAULT_MODEL: ModelId = 'claude-sonnet-4-5';
+// AWS Bedrock Model IDs - ordered by preference
+export const BEDROCK_MODEL_IDS: Record<ModelType, string[]> = {
+  claude: [
+    "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "anthropic.claude-3-haiku-20240307-v1:0",
+  ],
+  llama: [
+    "meta.llama3-1-70b-instruct-v1:0",
+    "meta.llama3-1-8b-instruct-v1:0",
+    "meta.llama3-70b-instruct-v1:0",
+    "meta.llama3-8b-instruct-v1:0",
+  ],
+  deepseek: [
+    "deepseek.deepseek-r1-distill-llama-70b",
+    "deepseek.deepseek-r1-distill-llama-8b",
+  ],
+};
 
-export function calculateCost(modelId: ModelId, inputTokens: number, outputTokens: number): number {
-  const model = MODELS[modelId];
-  const inputCost = (inputTokens / 1000) * model.inputPricePer1K;
-  const outputCost = (outputTokens / 1000) * model.outputPricePer1K;
-  return Number((inputCost + outputCost).toFixed(6));
+// Supported AWS Regions for each model
+export const MODEL_REGIONS: Record<ModelType, string[]> = {
+  claude: [
+    "us-east-1",
+    "us-west-2",
+    "eu-west-1",
+    "ap-northeast-1",
+    "ap-southeast-1",
+  ],
+  llama: [
+    "us-east-1",
+    "us-west-2",
+    "eu-west-1",
+    "ap-northeast-1",
+  ],
+  deepseek: [
+    "us-east-1",
+    "us-west-2",
+  ],
+};
+
+export function isModelAvailableInRegion(
+  model: ModelType,
+  region: string
+): boolean {
+  return MODEL_REGIONS[model]?.includes(region) || false;
 }
