@@ -4,6 +4,7 @@ import { streamDeepSeek } from '@/lib/bedrock/deepseek';
 import { streamLlama } from '@/lib/bedrock/llama';
 import { MODELS } from '@/lib/models/config';
 import { ModelId } from '@/types';
+import { checkRateLimit } from '@/lib/ratelimit';
 import { rateLimit } from '@/lib/ratelimit';
 
 // Input validation
@@ -69,14 +70,52 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // Rate limiting berdasarkan IP
-    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    if (!rateLimit(ip, 20, 60000)) {
+    // Get identifier (IP or user ID)
+    const ip = req.headers.get('x-forwarded-for') || 
+               req.headers.get('x-real-ip') || 
+               'unknown';
+
+    // Check rate limit (Upstash Redis)
+    const rateLimitResult = await checkRateLimit(ip);
+    
+    if (!rateLimitResult.success) {
       return Response.json(
-        { error: 'Rate limit exceeded. Maximum 20 requests per minute.' },
-        { status: 429 }
+        { 
+          error: 'Rate limit exceeded. Please try again later.',
+          limit: rateLimitResult.limit,
+          remaining: rateLimitResult.remaining,
+          resetAt: rateLimitResult.reset,
+        },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
+          }
+        }
       );
     }
+    
+    
+} catch (error) {
+    // Send to Sentry
+    if (typeof window === 'undefined') {
+      const Sentry = await import('@sentry/nextjs');
+      Sentry.captureException(error);
+    }
+    
+    // Log to PostHog
+    const { posthog } = await import('@/lib/posthog');
+    posthog.capture('api_error', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      endpoint: '/api/chat',
+    });
+
+    console.error('[API] Error:', error);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
 
     // Parse dan validate request body
     let body;
