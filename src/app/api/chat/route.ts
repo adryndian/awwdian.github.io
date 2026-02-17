@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BedrockInvoker } from '@/lib/bedrock/invoker';
 import { ChatRequest } from '@/lib/models/types';
-import { DEFAULT_MODEL, isValidModelId } from '@/lib/models/config';
+import { DEFAULT_MODEL, isValidModelId } from '@/types';
 
 export const runtime = 'edge'; // Optional: gunakan edge runtime untuk latency lebih baik
 export const maxDuration = 60; // Timeout 60 detik untuk Opus yang lambat

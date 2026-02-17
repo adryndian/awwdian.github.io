@@ -2,7 +2,7 @@
 
 import { useChat } from '@/hooks/useChat';
 import { ModelSelector } from '@/components/chat/ModelSelector';
-import { MODELS } from '@/lib/models/config';
+import { MODELS } from '@/types';
 import { useState } from 'react';
 
 export default function ChatPage() {

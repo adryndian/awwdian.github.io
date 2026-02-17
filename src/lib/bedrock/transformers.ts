@@ -1,4 +1,5 @@
-import { ChatMessage, ModelConfig } from '@/lib/models/types';
+import { ChatMessage } from '@/lib/models/types';
+import { ModelConfig } from '@/types';
 
 export class PayloadTransformer {
   static toAnthropic(
