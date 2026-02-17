@@ -1,8 +1,7 @@
 // src/app/actions/chat.ts
 "use server";
 
-import type { Message } from "@/types";
-import type { ModelId } from "@/lib/models/config";
+import type { Message, ModelId } from "@/types";
 
 interface SendMessageResponse {
   content?: string;

@@ -8,6 +8,9 @@ export type ExtractedFile = {
 
 export type ModelType = "claude" | "llama" | "deepseek";
 
+// Re-export ModelId from lib/models/config for backward compatibility
+export type { ModelId } from "@/lib/models/config";
+
 export type MessageRole = "user" | "assistant" | "system";
 
 export interface Message {
