@@ -1,61 +1,54 @@
 'use client';
 
-import { ModelConfig, ModelId } from '@/lib/models/config';
+import { ModelType } from '@/types';
 
 interface ModelSelectorProps {
-  models: ModelConfig[];
-  currentModel: ModelId;
-  onSelect: (modelId: ModelId) => void;
+  selectedModel: ModelType;
+  onModelChange: (model: ModelType) => void;
   disabled?: boolean;
 }
 
-export function ModelSelector({ models, currentModel, onSelect, disabled }: ModelSelectorProps) {
-  const getCostBadge = (level: string) => {
-    const colors = {
-      high: 'bg-red-100 text-red-800',
-      medium: 'bg-yellow-100 text-yellow-800',
-      low: 'bg-green-100 text-green-800',
-    };
-    return colors[level as keyof typeof colors] || colors.medium;
-  };
+const MODEL_OPTIONS: Array<{ id: ModelType; name: string; description: string }> = [
+  { id: 'claude', name: 'Claude', description: 'Most capable, best for complex tasks' },
+  { id: 'llama', name: 'LLaMA', description: 'Fast and efficient' },
+  { id: 'deepseek', name: 'DeepSeek', description: 'Specialized for code' },
+];
 
+export function ModelSelector({ selectedModel, onModelChange, disabled }: ModelSelectorProps) {
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium text-gray-700">Select Model</label>
+    <div className="flex items-center gap-2">
       <select
-        value={currentModel}
-        onChange={(e) => onSelect(e.target.value as ModelId)}
+        value={selectedModel}
+        onChange={(e) => onModelChange(e.target.value as ModelType)}
         disabled={disabled}
-        className="w-full p-2 border rounded-lg bg-white disabled:bg-gray-100"
+        className="px-3 py-1.5 text-xs font-medium rounded-lg 
+          bg-white/5 border border-white/10 text-white
+          hover:bg-white/10 transition-colors
+          disabled:opacity-50 disabled:cursor-not-allowed
+          focus:outline-none focus:ring-2 focus:ring-orange-500/50"
       >
-        {models.map((model) => (
-          <option key={model.id} value={model.id}>
-            {model.name} - {model.description}
+        {MODEL_OPTIONS.map((model) => (
+          <option key={model.id} value={model.id} className="bg-gray-900 text-white">
+            {model.name}
           </option>
         ))}
       </select>
       
-      <div className="flex gap-2 flex-wrap">
-        {models.map((model) => (
+      {/* Mobile: Chip buttons */}
+      <div className="hidden sm:flex gap-1.5">
+        {MODEL_OPTIONS.map((model) => (
           <button
             key={model.id}
-            onClick={() => onSelect(model.id)}
-            disabled={disabled || currentModel === model.id}
-            className={`px-3 py-1 text-xs rounded-full border transition-colors
-              ${currentModel === model.id 
-                ? 'bg-blue-500 text-white border-blue-500' 
-                : 'bg-white hover:bg-gray-50 border-gray-300'
-              } disabled:opacity-50`}
+            onClick={() => onModelChange(model.id)}
+            disabled={disabled || selectedModel === model.id}
+            className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all
+              ${selectedModel === model.id 
+                ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' 
+                : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white border border-white/10'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={model.description}
           >
             {model.name}
-            <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${getCostBadge(model.costLevel)}`}>
-              {model.costLevel}
-            </span>
-            {model.supportsThinking && (
-              <span className="ml-1 text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
-                thinking
-              </span>
-            )}
           </button>
         ))}
       </div>
