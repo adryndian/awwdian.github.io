@@ -1,110 +1,108 @@
-import { InvokeModelWithResponseStreamCommand } from '@aws-sdk/client-bedrock-runtime';
-import { bedrockClient } from './client';
-import { MODELS } from '../models/config';
+// src/lib/bedrock/llama.ts
+//
+// ROOT CAUSE ERROR:
+// Implementasi lama menggunakan InvokeModelWithResponseStream dengan body
+// { messages: [...] } — tapi Llama InvokeModel API mengharapkan { prompt: "..." }.
+//
+// FIX: Ganti ke ConverseStreamCommand (Converse API) yang:
+// 1. Menerima format { messages: [...] } secara native
+// 2. Unified API — konsisten lintas semua model Bedrock
+// 3. Tidak perlu convert messages ke prompt string manually
 
+import {
+  BedrockRuntimeClient,
+  ConverseStreamCommand,
+} from '@aws-sdk/client-bedrock-runtime';
 
+const client = new BedrockRuntimeClient({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
 
-function messagesToPrompt(messages: { role: string; content: string }[]) {
-  // sederhana & kompatibel luas
-  // (kalau mau lebih "llama chat template", nanti kita upgrade)
-  return messages
-    .map(m => `${m.role.toUpperCase()}: ${m.content}`)
-    .join('\n\n') + '\n\nASSISTANT:';
+// Model ID Llama 4 Maverick di AWS Bedrock
+const LLAMA_MODEL_ID = 'meta.llama4-maverick-17b-instruct-v1:0';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
-export async function* streamLlama(
-  messages: { role: string; content: string }[]
-): AsyncGenerator<string, { inputTokens: number; outputTokens: number; costUSD: number }> {
-  const model = MODELS['llama-4-maverick'];
+type StreamReturn = AsyncGenerator<
+  string,
+  { inputTokens: number; outputTokens: number; costUSD: number }
+>;
 
-  const validMessages = messages.filter(m => m.content && m.content.trim().length > 0);
+// Biaya per 1000 token (USD) — sesuaikan dengan pricing AWS Bedrock
+const COST_PER_1K_INPUT  = 0.00022;
+const COST_PER_1K_OUTPUT = 0.00088;
 
-  console.log('[Llama] Starting stream with model:', model.bedrockId);
-  console.log('[Llama] Message count:', validMessages.length);
+export async function* streamLlama(messages: Message[]): StreamReturn {
+  console.log('[Llama] Starting Converse stream, messages:', messages.length);
 
-  const command = new InvokeModelWithResponseStreamCommand({
-    modelId: model.bedrockId,
-    body: JSON.stringify({
-      prompt,
-      max_gen_len: 4096,
+  // Convert messages ke format Converse API
+  const converseMessages = messages.map((m) => ({
+    role: m.role as 'user' | 'assistant',
+    content: [{ text: m.content }],
+  }));
+
+  const command = new ConverseStreamCommand({
+    modelId: LLAMA_MODEL_ID,
+    messages: converseMessages,
+    inferenceConfig: {
+      maxTokens: 2048,
       temperature: 0.7,
-      top_p: 0.9,
-      
-    }),
-    contentType: 'application/json',
-    accept: 'application/json',
+      topP: 0.9,
+    },
   });
 
+  let inputTokens  = 0;
+  let outputTokens = 0;
+  let totalContent = '';
+
   try {
-    console.log('[Llama] Sending command to Bedrock...');
-    const response = await bedrockClient.send(command);
-    console.log('[Llama] Response received, starting stream...');
-    
-    let inputTokens = 0;
-    let outputTokens = 0;
-    let hasGeneratedContent = false;
+    const response = await client.send(command);
 
-    if (response.body) {
-      for await (const event of response.body) {
-        if (event.chunk?.bytes) {
-          const raw = new TextDecoder().decode(event.chunk.bytes);
-          
-          try {
-            const chunk = JSON.parse(raw);
+    if (!response.stream) {
+      throw new Error('Llama did not return a stream');
+    }
 
-            // Format 1: Llama native { generation: "text", stop_reason, prompt_token_count, generation_token_count }
-            if (chunk.generation !== undefined && chunk.generation !== null) {
-              const text = chunk.generation;
-              if (typeof text === 'string' && text.length > 0) {
-                hasGeneratedContent = true;
-                yield text;
-              }
-              if (chunk.prompt_token_count) inputTokens = chunk.prompt_token_count;
-              if (chunk.generation_token_count) outputTokens = chunk.generation_token_count;
-            }
+    for await (const event of response.stream) {
+      // Content chunk
+      if (event.contentBlockDelta?.delta?.text) {
+        const chunk = event.contentBlockDelta.delta.text;
+        totalContent += chunk;
+        yield chunk;
+      }
 
-            // Format 2: OpenAI-compatible { choices: [{ delta: { content } }] }
-            if (chunk.choices?.[0]?.delta?.content) {
-              const text = chunk.choices[0].delta.content;
-              if (text.length > 0) {
-                hasGeneratedContent = true;
-                yield text;
-              }
-            }
+      // Token usage
+      if (event.metadata?.usage) {
+        inputTokens  = event.metadata.usage.inputTokens  ?? 0;
+        outputTokens = event.metadata.usage.outputTokens ?? 0;
+      }
 
-            // Bedrock metrics
-            const metrics = chunk['amazon-bedrock-invocationMetrics'] || chunk.amazon_bedrock_invocationMetrics;
-            if (metrics) {
-              inputTokens = metrics.inputTokenCount || inputTokens;
-              outputTokens = metrics.outputTokenCount || outputTokens;
-            }
-          } catch (parseErr) {
-            console.error('[Llama] Parse error:', parseErr, 'Raw:', raw);
-          }
-        }
+      // Stream complete
+      if (event.messageStop) {
+        console.log('[Llama] Stream complete, stopReason:', event.messageStop.stopReason);
       }
     }
 
-    if (!hasGeneratedContent) {
-      console.error('[Llama] No content generated!');
+    if (!totalContent) {
       throw new Error('Llama did not generate any content. The model may be unavailable or rate limited.');
     }
 
-    console.log('[Llama] Stream completed. Tokens:', { inputTokens, outputTokens });
-    const costUSD = (inputTokens / 1000) * model.inputPricePer1K + (outputTokens / 1000) * model.outputPricePer1K;
-    return { inputTokens, outputTokens, costUSD: Number(costUSD.toFixed(6)) };
-  } catch (error) {
-    console.error('[Llama] Stream error:', error);
-    if (error instanceof Error) {
-      // Provide helpful error messages
-      if (error.message.includes('ResourceNotFoundException')) {
-        throw new Error(`Llama model not available in region ${model.region}. Please check AWS Bedrock console.`);
-      } else if (error.message.includes('AccessDeniedException')) {
-        throw new Error('Access denied to Llama model. Please check IAM permissions.');
-      } else if (error.message.includes('ThrottlingException')) {
-        throw new Error('Llama request throttled. Please wait and try again.');
-      }
-    }
-    throw error;
+    const costUSD =
+      (inputTokens  / 1000) * COST_PER_1K_INPUT +
+      (outputTokens / 1000) * COST_PER_1K_OUTPUT;
+
+    console.log('[Llama] Done:', { inputTokens, outputTokens, costUSD: costUSD.toFixed(6) });
+
+    return { inputTokens, outputTokens, costUSD };
+
+  } catch (err) {
+    console.error('[Llama] Stream error:', err);
+    throw err;
   }
 }

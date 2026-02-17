@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react';
 import { Sidebar } from '../layout/Sidebar';
 import { MessageList } from './MessageList';
 import { InputArea } from './InputArea';
-import { ModelSelector } from './ModelSelector';
 import { CostToast } from './CostToast';
 import { Message, ChatSession, UsageInfo, ModelId } from '@/types';
 import { DEFAULT_MODEL } from '@/lib/models/config';
@@ -294,37 +293,26 @@ export function ChatContainer({ userId }: ChatContainerProps) {
 
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
 
-        {/* HEADER FIX: 3-kolom [spacer-mobile | model-selector | status]
-            - spacer kiri = ruang untuk hamburger button (w-10)
-            - flex-1 tengah = model selector tidak overflow
-            - shrink-0 kanan = status indicator */}
-        <header className="h-14 sm:h-16 glass-dark border-b border-white/8 flex items-center px-4 lg:px-5 shrink-0 z-20 gap-2">
+        {/* HEADER: hanya branding + hamburger spacer di mobile.
+            ModelSelector sudah dipindah ke InputArea. */}
+        <header className="h-14 sm:h-16 glass-dark border-b border-white/8 flex items-center px-4 lg:px-5 shrink-0 z-20">
+          {/* Spacer kiri untuk hamburger mobile button (dari Sidebar.tsx) */}
           <div className="w-10 shrink-0 lg:hidden" />
 
-          <div className="flex-1 flex justify-start items-center min-w-0">
-            <ModelSelector
-              selected={selectedModel}
-              onSelect={handleModelChange}
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="shrink-0 flex items-center justify-end min-w-[2.5rem]">
-            {isLoading && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-input text-xs text-white/70 font-medium">
-                <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-                <span className="hidden sm:inline">Generating…</span>
-              </div>
-            )}
+          {/* App title — center di mobile, left di desktop */}
+          <div className="flex-1 flex items-center justify-center lg:justify-start">
+            <span className="text-sm font-semibold text-white/70 tracking-wide">
+              BeckRock AI
+            </span>
           </div>
         </header>
 
-        {/* MESSAGES FIX: scroll handled inside MessageList via scrollTop */}
+        {/* MESSAGES: overflow handled inside MessageList */}
         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           <MessageList messages={messages} isLoading={isLoading} />
         </div>
 
-        {/* InputArea: fixed positioned, z-30 */}
+        {/* INPUT AREA: fixed bottom, includes ModelSelector + larger send button */}
         <InputArea
           value={input}
           onChange={setInput}
@@ -334,6 +322,8 @@ export function ChatContainer({ userId }: ChatContainerProps) {
           pendingFiles={pendingFiles}
           onAddFiles={(f) => setPendingFiles((p) => [...p, ...f])}
           onRemoveFile={(id) => setPendingFiles((p) => p.filter((f) => f.id !== id))}
+          selectedModel={selectedModel}
+          onModelChange={handleModelChange}
         />
       </main>
 

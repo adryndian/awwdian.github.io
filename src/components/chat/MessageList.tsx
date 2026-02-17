@@ -27,9 +27,10 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // FIX: Manual scroll ke container bukan scrollIntoView ke viewport.
-  // scrollIntoView block:'end' scroll ke tepi viewport — tertutup InputArea fixed.
-  // container.scrollTo scrollTop ke bawah container — clearance pb terjamin.
+  // FIX SCROLL: Manual scrollTop ke container (bukan scrollIntoView ke viewport).
+  // InputArea adalah `fixed bottom-0` ~140px tingginya (model pill + input + hint).
+  // scrollIntoView block:'end' → scroll ke tepi viewport → pesan tertutup InputArea.
+  // container.scrollTo scrollHeight → scroll ke bawah area scroll → clearance terjamin.
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -69,7 +70,6 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
   }
 
   return (
-    // FIX: overflow-x-hidden cegah horizontal scroll, ref untuk manual scrollTo
     <div
       ref={scrollContainerRef}
       className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6"
@@ -111,7 +111,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                 )}
               </div>
 
-              {/* FIX: min-w-0 wajib agar flex child bisa menyusut & tidak overflow */}
+              {/* Message column — min-w-0 wajib agar bisa menyusut */}
               <div
                 className={`flex flex-col gap-1.5 min-w-0 ${
                   isUser
@@ -135,7 +135,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                   </div>
                 )}
 
-                {/* FIX: overflow-hidden + min-w-0 pada bubble cegah CodeBlock menembus border */}
+                {/* Bubble — overflow-hidden + min-w-0 cegah CodeBlock overflow */}
                 <div
                   className={`rounded-2xl px-4 py-3 shadow-lg min-w-0 overflow-hidden w-full ${
                     isUser
@@ -161,8 +161,6 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                   {isStreaming && !hasContent ? (
                     <TypingDots />
                   ) : (
-                    // FIX: overflow-hidden pada prose container cegah child elements (table, code)
-                    // menerobos keluar bubble
                     <div className="prose-glass overflow-hidden">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
@@ -232,8 +230,11 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
           );
         })}
 
-        {/* Scroll anchor - pb-4 memberi jarak dari InputArea fixed bottom */}
-        <div ref={bottomRef} className="h-4" aria-hidden="true" />
+        {/* FIX: paddingBottom besar agar pesan terakhir tidak tertutup InputArea.
+            InputArea = model pill (~40px) + divider + input row (~60px) + hint (~24px)
+            + padding top/bottom + safe-area = ~160px total.
+            Tambah 24px buffer = 184px → pakai 48 (tailwind h-48 = 192px).  */}
+        <div ref={bottomRef} className="h-48" aria-hidden="true" />
       </div>
     </div>
   );
