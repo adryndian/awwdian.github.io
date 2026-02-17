@@ -1,41 +1,25 @@
-// src/lib/bedrock/client.ts
-import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
+/**
+ * Bedrock Client Singleton - Hindari multiple instance
+ */
 
-let clientInstance: BedrockRuntimeClient | null = null;
+import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
+import { AWS_REGION } from '@/lib/models/config';
+
+// Singleton pattern untuk menghindari koneksi berulang
+let bedrockClient: BedrockRuntimeClient | null = null;
 
 export function getBedrockClient(): BedrockRuntimeClient {
-  if (clientInstance) return clientInstance;
-
-  const region = process.env.AWS_REGION || "us-east-1";
-
-  console.log(`[Bedrock] Initializing client for region: ${region}`);
-
-  // Validate credentials exist
-  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
-    console.warn(
-      "[Bedrock] AWS credentials not found in env vars. " +
-        "Falling back to default credential chain (IAM role, etc.)"
-    );
+  if (!bedrockClient) {
+    bedrockClient = new BedrockRuntimeClient({
+      region: AWS_REGION,
+      // Credential akan otomatis dari environment/IAM role
+      // Jika running local, pastikan AWS credentials terkonfigurasi
+    });
   }
-
-  const config: any = { region };
-
-  // Only set explicit credentials if provided
-  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-    config.credentials = {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      ...(process.env.AWS_SESSION_TOKEN && {
-        sessionToken: process.env.AWS_SESSION_TOKEN,
-      }),
-    };
-  }
-
-  clientInstance = new BedrockRuntimeClient(config);
-  return clientInstance;
+  return bedrockClient;
 }
 
-// Reset client (useful for testing or credential rotation)
+// Reset client jika diperlukan (misal: error credential)
 export function resetBedrockClient(): void {
-  clientInstance = null;
+  bedrockClient = null;
 }

@@ -1,185 +1,108 @@
-// src/app/api/chat/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { invokeClaude } from "@/lib/bedrock/claude";
-import { invokeLlama } from "@/lib/bedrock/llama";
-import { invokeDeepSeek } from "@/lib/bedrock/deepseek";
-import type { ModelType } from "@/types";
+/**
+ * Main API Route - Entry point untuk chat completion
+ * Mendukung: Claude Opus 4.6, Sonnet 4.0, Llama 4 Maverick
+ */
 
-// ============================================
-// Cost calculation per model (per 1K tokens)
-// ============================================
-const COST_PER_1K_TOKENS: Record<
-  ModelType,
-  { input: number; output: number }
-> = {
-  claude: { input: 0.003, output: 0.015 },
-  llama: { input: 0.00099, output: 0.00099 },
-  deepseek: { input: 0.0014, output: 0.0014 },
-};
+import { NextRequest, NextResponse } from 'next/server';
+import { BedrockInvoker } from '@/lib/bedrock/invoker';
+import { ChatRequest } from '@/lib/models/types';
+import { DEFAULT_MODEL, isValidModelId } from '@/lib/models/config';
 
-function calculateCost(
-  model: ModelType,
-  inputTokens: number,
-  outputTokens: number
-): number {
-  const rates = COST_PER_1K_TOKENS[model];
-  return (
-    (inputTokens / 1000) * rates.input +
-    (outputTokens / 1000) * rates.output
-  );
-}
+export const runtime = 'edge'; // Optional: gunakan edge runtime untuk latency lebih baik
+export const maxDuration = 60; // Timeout 60 detik untuk Opus yang lambat
 
-// ============================================
-// Format conversation history for each model
-// ============================================
-interface ChatMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
-
-function formatMessages(
-  rawMessages: any[],
-  currentMessage: string
-): ChatMessage[] {
-  const history: ChatMessage[] = (rawMessages || [])
-    .filter((m: any) => m.content && m.role)
-    .map((m: any) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
-
-  history.push({
-    role: "user",
-    content: currentMessage,
-  });
-
-  return history;
-}
-
-// ============================================
-// POST /api/chat
-// ============================================
-export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
-    const {
-      model,
-      message,
-      history = [],
-    }: {
-      model: ModelType;
-      message: string;
-      history: any[];
-    } = body;
+    const body = await req.json();
+    
+    // Validasi request
+    const chatRequest: ChatRequest = {
+      messages: body.messages || [],
+      modelId: body.modelId || DEFAULT_MODEL,
+      temperature: body.temperature,
+      maxTokens: body.maxTokens,
+      enableThinking: body.enableThinking,
+      stream: body.stream ?? false,
+    };
 
-    // Validate input
-    if (!message || !message.trim()) {
+    // Validasi model ID
+    if (!isValidModelId(chatRequest.modelId!)) {
       return NextResponse.json(
-        { error: "Pesan tidak boleh kosong" },
+        { 
+          error: 'Invalid model ID',
+          availableModels: [
+            'us.anthropic.claude-opus-4-6-v1',
+            'us.anthropic.claude-sonnet-4-0-v1',
+            'us.meta.llama4-maverick-17b-instruct-v1'
+          ]
+        },
         { status: 400 }
       );
     }
 
-    if (!["claude", "llama", "deepseek"].includes(model)) {
+    // Validasi messages
+    if (!chatRequest.messages.length) {
       return NextResponse.json(
-        { error: `Model "${model}" tidak didukung. Gunakan: claude, llama, atau deepseek` },
+        { error: 'Messages array cannot be empty' },
         { status: 400 }
       );
     }
 
-    console.log(`\n${"=".repeat(50)}`);
-    console.log(`[API] Model: ${model} | Message: ${message.substring(0, 100)}...`);
-    console.log(`[API] History: ${history.length} messages`);
-
-    const messages = formatMessages(history, message);
-
-    let content: string;
-    let inputTokens = 0;
-    let outputTokens = 0;
-
-    // ============================================
-    // Route to correct model handler
-    // ============================================
-    switch (model) {
-      case "claude": {
-        const response = await invokeClaude(
-          messages.map((m) => ({
-            role: m.role === "system" ? "user" : m.role,
-            content: m.content,
-          })),
-          "Kamu adalah asisten AI yang membantu. Jawab dalam bahasa yang sama dengan user.",
-          4096,
-          0.7
-        );
-        content = response.content;
-        inputTokens = response.inputTokens;
-        outputTokens = response.outputTokens;
-        break;
-      }
-
-      case "llama": {
-        const response = await invokeLlama(
-          messages,
-          2048,
-          0.7
-        );
-        content = response.content;
-        inputTokens = response.inputTokens;
-        outputTokens = response.outputTokens;
-        break;
-      }
-
-      case "deepseek": {
-        const response = await invokeDeepSeek(
-          messages,
-          4096,
-          0.7
-        );
-        content = response.content;
-        inputTokens = response.inputTokens;
-        outputTokens = response.outputTokens;
-        break;
-      }
-
-      default:
-        throw new Error(`Model handler not found: ${model}`);
+    // Handle Streaming
+    if (chatRequest.stream) {
+      const stream = await createStream(chatRequest);
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
     }
 
-    // Calculate cost
-    const cost = calculateCost(model, inputTokens, outputTokens);
-    const duration = Date.now() - startTime;
+    // Handle Non-streaming
+    const response = await BedrockInvoker.invoke(chatRequest);
+    return NextResponse.json(response);
 
-    console.log(`[API] ✅ Success | ${duration}ms | Tokens: ${inputTokens}+${outputTokens} | Cost: $${cost.toFixed(6)}`);
-
-    return NextResponse.json({
-      content,
-      cost,
-      inputTokens,
-      outputTokens,
-      model,
-      duration,
-    });
   } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error(`[API] ❌ Error after ${duration}ms:`, error.message);
-    console.error(`[API] Stack:`, error.stack?.substring(0, 500));
-
-    // Return detailed error for debugging
+    console.error('[API Chat Error]:', error);
+    
     return NextResponse.json(
-      {
-        error: error.message || "Terjadi kesalahan pada server",
-        details:
-          process.env.NODE_ENV === "development"
-            ? {
-                name: error.name,
-                message: error.message,
-                stack: error.stack?.substring(0, 300),
-              }
-            : undefined,
+      { 
+        error: error.message || 'Internal server error',
+        timestamp: new Date().toISOString(),
       },
       { status: 500 }
     );
   }
+}
+
+/**
+ * Create SSE Stream untuk streaming response
+ */
+async function createStream(request: ChatRequest): Promise<ReadableStream> {
+  const encoder = new TextEncoder();
+  
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        const generator = BedrockInvoker.invokeStream(request);
+        
+        for await (const chunk of generator) {
+          // Format SSE (Server-Sent Events)
+          const data = `data: ${JSON.stringify({ content: chunk })}\n\n`;
+          controller.enqueue(encoder.encode(data));
+        }
+        
+        // Signal end of stream
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+        
+      } catch (error) {
+        const errorData = `data: ${JSON.stringify({ error: (error as Error).message })}\n\n`;
+        controller.enqueue(encoder.encode(errorData));
+        controller.close();
+      }
+    },
+  });
 }

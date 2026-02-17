@@ -1,79 +1,78 @@
-// src/lib/models/config.ts
-import type { ModelType, ModelConfig } from "@/types";
+/**
+ * Model Configuration - Centralized registry untuk semua model
+ * Inference Profile IDs wajib untuk on-demand throughput
+ */
 
-export const MODEL_CONFIGS: Record<ModelType, ModelConfig> = {
-  claude: {
-    id: "claude",
-    name: "Claude 3.5 Sonnet",
-    description: "Analisis mendalam, penulisan, dan coding",
+export const AWS_REGION = process.env.AWS_REGION || 'us-west-2';
+
+export const MODEL_IDS = {
+  // Claude Opus 4.6 - Most capable, untuk coding kompleks
+  CLAUDE_OPUS_4_6: 'us.anthropic.claude-opus-4-6-v1',
+  
+  // Claude Sonnet 4.0 - Balance performance & speed
+  CLAUDE_SONNET_4_0: 'us.anthropic.claude-sonnet-4-0-v1',
+  
+  // Llama 4 Maverick - Open source, cost-effective
+  LLAMA_4_MAVERICK: 'us.meta.llama4-maverick-17b-instruct-v1',
+} as const;
+
+export type ModelId = typeof MODEL_IDS[keyof typeof MODEL_IDS];
+
+export interface ModelConfig {
+  id: ModelId;
+  name: string;
+  provider: 'anthropic' | 'meta';
+  maxTokens: number;
+  supportsStreaming: boolean;
+  supportsThinking?: boolean; // Khusus Claude 4.6
+  description: string;
+  costLevel: 'high' | 'medium' | 'low';
+}
+
+export const MODELS: Record<ModelId, ModelConfig> = {
+  [MODEL_IDS.CLAUDE_OPUS_4_6]: {
+    id: MODEL_IDS.CLAUDE_OPUS_4_6,
+    name: 'Claude Opus 4.6',
+    provider: 'anthropic',
     maxTokens: 4096,
-    costPer1kInput: 0.003,
-    costPer1kOutput: 0.015,
-    available: true,
+    supportsStreaming: true,
+    supportsThinking: true,
+    description: 'Maximum reasoning & coding capabilities',
+    costLevel: 'high',
   },
-  llama: {
-    id: "llama",
-    name: "LLaMA 3.1",
-    description: "Open-source, cepat, dan efisien",
-    maxTokens: 2048,
-    costPer1kInput: 0.00099,
-    costPer1kOutput: 0.00099,
-    available: true,
-  },
-  deepseek: {
-    id: "deepseek",
-    name: "DeepSeek R1",
-    description: "Reasoning dan coding tingkat lanjut",
+  [MODEL_IDS.CLAUDE_SONNET_4_0]: {
+    id: MODEL_IDS.CLAUDE_SONNET_4_0,
+    name: 'Claude Sonnet 4.0',
+    provider: 'anthropic',
     maxTokens: 4096,
-    costPer1kInput: 0.0014,
-    costPer1kOutput: 0.0014,
-    available: true,
+    supportsStreaming: true,
+    supportsThinking: false,
+    description: 'Balanced performance for most tasks',
+    costLevel: 'medium',
+  },
+  [MODEL_IDS.LLAMA_4_MAVERICK]: {
+    id: MODEL_IDS.LLAMA_4_MAVERICK,
+    name: 'Llama 4 Maverick',
+    provider: 'meta',
+    maxTokens: 8192,
+    supportsStreaming: true,
+    supportsThinking: false,
+    description: 'Open source, efficient for general tasks',
+    costLevel: 'low',
   },
 };
 
-// AWS Bedrock Model IDs - ordered by preference
-export const BEDROCK_MODEL_IDS: Record<ModelType, string[]> = {
-  claude: [
-    "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    "anthropic.claude-3-5-sonnet-20240620-v1:0",
-    "anthropic.claude-3-haiku-20240307-v1:0",
-  ],
-  llama: [
-    "meta.llama3-1-70b-instruct-v1:0",
-    "meta.llama3-1-8b-instruct-v1:0",
-    "meta.llama3-70b-instruct-v1:0",
-    "meta.llama3-8b-instruct-v1:0",
-  ],
-  deepseek: [
-    "deepseek.deepseek-r1-distill-llama-70b",
-    "deepseek.deepseek-r1-distill-llama-8b",
-  ],
-};
+// Default model fallback
+export const DEFAULT_MODEL = MODEL_IDS.CLAUDE_SONNET_4_0;
 
-// Supported AWS Regions for each model
-export const MODEL_REGIONS: Record<ModelType, string[]> = {
-  claude: [
-    "us-east-1",
-    "us-west-2",
-    "eu-west-1",
-    "ap-northeast-1",
-    "ap-southeast-1",
-  ],
-  llama: [
-    "us-east-1",
-    "us-west-2",
-    "eu-west-1",
-    "ap-northeast-1",
-  ],
-  deepseek: [
-    "us-east-1",
-    "us-west-2",
-  ],
-};
+// Validasi model ID
+export function isValidModelId(id: string): id is ModelId {
+  return Object.values(MODEL_IDS).includes(id as ModelId);
+}
 
-export function isModelAvailableInRegion(
-  model: ModelType,
-  region: string
-): boolean {
-  return MODEL_REGIONS[model]?.includes(region) || false;
+export function getModelConfig(id: string): ModelConfig {
+  if (!isValidModelId(id)) {
+    throw new Error(`Invalid model ID: ${id}. Available: ${Object.keys(MODEL_IDS).join(', ')}`);
+  }
+  return MODELS[id];
 }
