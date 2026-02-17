@@ -52,21 +52,51 @@ export function Sidebar({
 
   const handleDelete = async (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
+    
+    if (!confirm('Apakah Anda yakin ingin menghapus percakapan ini?')) {
+      return;
+    }
+    
     setDeletingId(chatId);
+    
     try {
-      await supabase.from('messages').delete().eq('chat_id', chatId);
-      const { error } = await supabase.from('chats').delete().eq('id', chatId);
-      if (!error) 
+      // Delete messages first (foreign key constraint)
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('chat_id', chatId);
       
-      // ✅ TRACKING: Chat deleted
-        posthog.capture('chat_deleted', {
-          chatId,
-          timestamp: new Date().toISOString(),
-        });
-                  
+      if (messagesError) {
+        throw new Error(`Failed to delete messages: ${messagesError.message}`);
+      }
+
+      // Delete the chat
+      const { error: chatError } = await supabase
+        .from('chats')
+        .delete()
+        .eq('id', chatId);
+      
+      if (chatError) {
+        throw new Error(`Failed to delete chat: ${chatError.message}`);
+      }
+
+      // ✅ TRACKING: Chat deleted (only if PostHog is available)
+      if (typeof window !== 'undefined' && (window as any).posthog) {
+        try {
+          (window as any).posthog.capture('chat_deleted', {
+            chatId,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (trackingError) {
+          console.warn('PostHog tracking failed:', trackingError);
+        }
+      }
+
+      // Reload to refresh the chat list
       window.location.reload();
     } catch (error) {
-      console.error('Failed to delete:', error);
+      console.error('Failed to delete chat:', error);
+      alert('Gagal menghapus percakapan. Silakan coba lagi.');
     } finally {
       setDeletingId(null);
     }

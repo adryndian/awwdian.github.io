@@ -21,21 +21,28 @@ const nextConfig = {
   },
 };
 
-// Sentry configuration
-const { withSentryConfig } = require('@sentry/nextjs');
+// Sentry configuration - OPTIONAL (only if SENTRY_AUTH_TOKEN is set)
+// To enable Sentry: Add SENTRY_AUTH_TOKEN, SENTRY_ORG, and SENTRY_PROJECT to your environment variables
+const useSentry = process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT;
 
-module.exports = withSentryConfig(
-  nextConfig,
-  {
-    silent: true,
-    org: "your-org", // ⚠️ Ganti dengan org Sentry Anda
-    project: "beckrock-ai",
-  },
-  {
-    widenClientFileUpload: true,
-    transpileClientSDK: true,
-    tunnelRoute: "/monitoring",
-    hideSourceMaps: true,
-    disableLogger: true,
-  }
-);
+if (useSentry) {
+  const { withSentryConfig } = require('@sentry/nextjs');
+  
+  module.exports = withSentryConfig(
+    nextConfig,
+    {
+      silent: true,
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+    },
+    {
+      widenClientFileUpload: true,
+      transpileClientSDK: true,
+      tunnelRoute: "/monitoring",
+      hideSourceMaps: true,
+      disableLogger: true,
+    }
+  );
+} else {
+  module.exports = nextConfig;
+}
