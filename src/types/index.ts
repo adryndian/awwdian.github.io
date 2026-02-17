@@ -8,8 +8,23 @@ export type ExtractedFile = {
 
 export type ModelType = "claude" | "llama" | "deepseek";
 
-// Re-export types from lib/models/config
-export type { ModelId, ModelConfig } from "@/lib/models/config";
+// Define ModelId type directly (avoid circular dependency)
+export type ModelId = 
+  | 'us.anthropic.claude-opus-4-6-v1'
+  | 'us.anthropic.claude-sonnet-4-0-v1'
+  | 'us.meta.llama4-maverick-17b-instruct-v1';
+
+// Define ModelConfig interface directly
+export interface ModelConfig {
+  id: ModelId;
+  name: string;
+  provider: 'anthropic' | 'meta';
+  maxTokens: number;
+  supportsStreaming: boolean;
+  supportsThinking?: boolean;
+  description: string;
+  costLevel: 'high' | 'medium' | 'low';
+}
 
 // Re-export values and functions from lib/models/config
 export { MODELS, DEFAULT_MODEL, AWS_REGION, isValidModelId, getModelConfig } from "@/lib/models/config";

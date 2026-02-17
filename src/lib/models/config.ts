@@ -3,6 +3,8 @@
  * Inference Profile IDs wajib untuk on-demand throughput
  */
 
+import type { ModelId, ModelConfig } from '@/types';
+
 export const AWS_REGION = process.env.AWS_REGION || 'us-west-2';
 
 export const MODEL_IDS = {
@@ -15,19 +17,6 @@ export const MODEL_IDS = {
   // Llama 4 Maverick - Open source, cost-effective
   LLAMA_4_MAVERICK: 'us.meta.llama4-maverick-17b-instruct-v1',
 } as const;
-
-export type ModelId = typeof MODEL_IDS[keyof typeof MODEL_IDS];
-
-export interface ModelConfig {
-  id: ModelId;
-  name: string;
-  provider: 'anthropic' | 'meta';
-  maxTokens: number;
-  supportsStreaming: boolean;
-  supportsThinking?: boolean; // Khusus Claude 4.6
-  description: string;
-  costLevel: 'high' | 'medium' | 'low';
-}
 
 export const MODELS: Record<ModelId, ModelConfig> = {
   [MODEL_IDS.CLAUDE_OPUS_4_6]: {
