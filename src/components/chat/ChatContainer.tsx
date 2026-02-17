@@ -200,7 +200,11 @@ export function ChatContainer({ userId }: ChatContainerProps) {
         </div>
 
         <div className="flex-shrink-0">
-          <InputArea onSend={handleSend} disabled={isLoading} />
+          <InputArea
+  onSendMessage={(content, files) => void handleSend(content, files)}
+  isLoading={isLoading}
+  selectedModel={selectedModel}
+/>
         </div>
       </div>
 
