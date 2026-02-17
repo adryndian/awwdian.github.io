@@ -1,6 +1,7 @@
 'use client';
 
-import { ModelConfig, ModelId } from '@/lib/models/config';
+import { ModelConfig } from '@/lib/models/config';
+import type { ModelId } from '@/types';
 
 interface ModelSelectorProps {
   models: ModelConfig[];

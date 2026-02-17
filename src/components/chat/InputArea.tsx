@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { ModelId } from "@/lib/models/config";
+import type { ModelId } from "@/types";
 
 interface InputAreaProps {
   onSendMessage: (content: string, files?: File[]) => void;

@@ -7,8 +7,8 @@ import { InputArea } from "./InputArea";
 import { ModelSelector } from "./ModelSelector";
 import { CostToast } from "./CostToast";
 import { sendMessage } from "@/app/actions/chat";
-import type { Message } from "@/types";
-import { MODELS, ModelId, DEFAULT_MODEL } from "@/lib/models/config";
+import type { Message, ModelId } from "@/types";
+import { MODELS, DEFAULT_MODEL } from "@/lib/models/config";
 
 export type ChatContainerProps = {
   userId?: string;
