@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { MODELS, DEFAULT_MODEL } from '@/lib/models/config';
+import { MODELS, DEFAULT_MODEL } from '@/types';
 import type { ModelId } from '@/types';
 
 interface Message {

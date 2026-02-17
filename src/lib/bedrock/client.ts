@@ -3,7 +3,7 @@
  */
 
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
-import { AWS_REGION } from '@/lib/models/config';
+import { AWS_REGION } from '@/types';
 
 // Singleton pattern untuk menghindari koneksi berulang
 let bedrockClient: BedrockRuntimeClient | null = null;

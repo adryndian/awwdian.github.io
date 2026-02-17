@@ -8,8 +8,11 @@ export type ExtractedFile = {
 
 export type ModelType = "claude" | "llama" | "deepseek";
 
-// Re-export ModelId and ModelConfig from lib/models/config
+// Re-export types from lib/models/config
 export type { ModelId, ModelConfig } from "@/lib/models/config";
+
+// Re-export values and functions from lib/models/config
+export { MODELS, DEFAULT_MODEL, AWS_REGION, isValidModelId, getModelConfig } from "@/lib/models/config";
 
 export type MessageRole = "user" | "assistant" | "system";
 
