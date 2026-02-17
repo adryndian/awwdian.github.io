@@ -242,7 +242,6 @@ export async function invokeLlama(
     LLAMA_MODELS.primary,
     LLAMA_MODELS.fallback1,
     LLAMA_MODELS.fallback2,
-    LLAMA_MODELS
     LLAMA_MODELS.fallback3,
   ];
 
