@@ -14,138 +14,107 @@ interface ModelSelectorProps {
 
 const modelIcons: Record<ModelId, React.ElementType> = {
   'claude-sonnet-4-5': Zap,
-  'claude-opus-4-6': Brain,
-  'deepseek-r1': Cpu,
-  'llama-4-maverick': Flame,
+  'claude-opus-4-6':   Brain,
+  'deepseek-r1':       Cpu,
+  'llama-4-maverick':  Flame,
 };
 
 const modelBadge: Record<ModelId, string> = {
   'claude-sonnet-4-5': 'Anthropic',
-  'claude-opus-4-6': 'Anthropic',
-  'deepseek-r1': 'DeepSeek',
-  'llama-4-maverick': 'Meta',
+  'claude-opus-4-6':   'Anthropic',
+  'deepseek-r1':       'DeepSeek',
+  'llama-4-maverick':  'Meta',
 };
 
 export function ModelSelector({ selected, onSelect, disabled }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selectedModel = MODELS[selected];
-  const Icon = modelIcons[selected] || Zap;
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  // 📊 Track dropdown opened
   const handleToggle = () => {
     if (disabled) return;
-    
-    const newState = !isOpen;
-    setIsOpen(newState);
-    
-    if (newState) {
-      posthog.capture('model_selector_opened', {
-        currentModel: selected,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    const next = !isOpen;
+    setIsOpen(next);
+    if (next) posthog.capture('model_selector_opened', { currentModel: selected });
   };
 
-  // 📊 Track model selection
-  const handleModelSelect = (modelId: ModelId) => {
-    const previousModel = selected;
-    const newModel = MODELS[modelId];
-    const oldModel = MODELS[previousModel];
-
-    // Track model change
+  const handleSelect = (modelId: ModelId) => {
     posthog.capture('model_selected', {
-      modelId: modelId,
-      modelName: newModel.name,
-      modelProvider: modelBadge[modelId],
-      previousModelId: previousModel,
-      previousModelName: oldModel.name,
-      supportsStreaming: newModel.supportsStreaming,
-      priceDifference: {
-        input: newModel.inputPricePer1K - oldModel.inputPricePer1K,
-        output: newModel.outputPricePer1K - oldModel.outputPricePer1K,
-      },
-      timestamp: new Date().toISOString(),
+      modelId,
+      modelName: MODELS[modelId].name,
+      previousModelId: selected,
     });
-
     onSelect(modelId);
     setIsOpen(false);
   };
 
   return (
     <div ref={ref} className="relative">
+      {/* Trigger */}
       <button
         onClick={handleToggle}
         disabled={disabled}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg glass-input text-xs font-medium text-white transition-all hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-xl glass-input
+                   text-sm font-semibold text-white
+                   hover:bg-white/12 transition-smooth
+                   disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        <span
-          className="w-1.5 h-1.5 rounded-full shrink-0 shadow-sm"
-          style={{ backgroundColor: selectedModel.color }}
-        />
-        <span className="drop-shadow-sm whitespace-nowrap">{selectedModel.name}</span>
+        <span className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: selectedModel.color }} />
+        <span>{selectedModel.name}</span>
         <ChevronDown
-          className="w-3 h-3 text-white/70 transition-transform drop-shadow-sm"
+          className="w-3.5 h-3.5 text-white/50 transition-transform"
           style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
         />
       </button>
 
+      {/* Dropdown */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-64 glass-card rounded-xl shadow-[var(--shadow-elevated)] z-50 overflow-hidden py-1.5 animate-scaleIn">
-          <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider px-3 pt-1.5 pb-2 drop-shadow-sm">
-            Model
+        <div className="absolute top-full left-0 mt-2 w-72 glass-dark rounded-2xl
+                        shadow-[var(--shadow-elevated)] z-50 overflow-hidden py-2 border border-white/10
+                        animate-scaleIn">
+          <p className="text-[10px] font-bold text-white/35 uppercase tracking-widest px-4 pt-2 pb-2">
+            Pilih Model
           </p>
-          {(Object.keys(MODELS) as ModelId[]).map((modelId) => {
-            const model = MODELS[modelId];
-            const ModelIcon = modelIcons[modelId] || Zap;
-            const isSelected = selected === modelId;
-
+          {(Object.keys(MODELS) as ModelId[]).map((id) => {
+            const m = MODELS[id];
+            const Icon = modelIcons[id] || Zap;
+            const active = selected === id;
             return (
               <button
-                key={modelId}
-                onClick={() => handleModelSelect(modelId)}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-all ${
-                  isSelected ? 'bg-white/20' : 'hover:bg-white/10'
+                key={id}
+                onClick={() => handleSelect(id)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-smooth ${
+                  active ? 'bg-white/15' : 'hover:bg-white/8'
                 }`}
               >
                 <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 shadow-sm"
-                  style={{ backgroundColor: `${model.color}30` }}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: `${m.color}25` }}
                 >
-                  <ModelIcon className="w-3.5 h-3.5 drop-shadow" style={{ color: model.color }} />
+                  <Icon className="w-4 h-4" style={{ color: m.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <p className="text-xs font-semibold text-white truncate drop-shadow-sm">
-                      {model.name}
-                    </p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm font-semibold text-white truncate">{m.name}</p>
                     <span
-                      className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide shadow-sm"
-                      style={{
-                        backgroundColor: `${model.color}25`,
-                        color: model.color,
-                      }}
+                      className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide"
+                      style={{ color: m.color, backgroundColor: `${m.color}20` }}
                     >
-                      {modelBadge[modelId]}
+                      {modelBadge[id]}
                     </span>
                   </div>
-                  <p className="text-[10px] text-white/60 truncate drop-shadow-sm">
-                    {model.description}
-                  </p>
+                  <p className="text-xs text-white/40 truncate">{m.description}</p>
                 </div>
-                {isSelected && (
-                  <Check className="w-4 h-4 shrink-0 drop-shadow" style={{ color: model.color }} />
-                )}
+                {active && <Check className="w-4 h-4 shrink-0" style={{ color: m.color }} />}
               </button>
             );
           })}

@@ -1,5 +1,4 @@
 'use client';
-'use client';
 
 import { useState, useCallback } from 'react';
 import { Sidebar } from '../layout/Sidebar';
@@ -14,145 +13,83 @@ import { getUserChats, getChatMessages, createChat, saveMessage } from '@/app/ac
 import { posthog } from '@/lib/posthog';
 import { createClient } from '@/lib/supabase/client';
 
-interface ChatContainerProps {
-  userId: string;
-}
+interface ChatContainerProps { userId: string; }
 
 interface PendingFile {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  data: string;
+  id: string; name: string; type: string; size: number; data: string;
 }
 
 export function ChatContainer({ userId }: ChatContainerProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelId>(DEFAULT_MODEL);
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [lastUsage, setLastUsage] = useState<UsageInfo | null>(null);
-  const [chats, setChats] = useState<ChatSession[]>([]);
-  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [messages,       setMessages]       = useState<Message[]>([]);
+  const [input,          setInput]          = useState('');
+  const [isLoading,      setIsLoading]      = useState(false);
+  const [selectedModel,  setSelectedModel]  = useState<ModelId>(DEFAULT_MODEL);
+  const [currentChatId,  setCurrentChatId]  = useState<string | null>(null);
+  const [lastUsage,      setLastUsage]      = useState<UsageInfo | null>(null);
+  const [chats,          setChats]          = useState<ChatSession[]>([]);
+  const [pendingFiles,   setPendingFiles]   = useState<PendingFile[]>([]);
+  const [chatsLoading,   setChatsLoading]   = useState(false);
 
+  /* ── Load chats ─────────────────────────────────────────────── */
   const refreshChats = useCallback(async () => {
+    setChatsLoading(true);
     try {
       const data = await getUserChats(userId);
       setChats(
-        data.map((chat: any) => ({
-          id: chat.id,
-          title: chat.title,
+        data.map((c: any) => ({
+          id: c.id,
+          title: c.title,
           messages: [],
-          defaultModel: chat.default_model,
-          createdAt: new Date(chat.created_at),
-          updatedAt: new Date(chat.updated_at),
+          defaultModel: c.default_model,
+          createdAt: new Date(c.created_at),
+          updatedAt: new Date(c.updated_at),
         }))
       );
-    } catch (error) {
-      console.error('Failed to load chats:', error);
-      
-      // 📊 Track error
-      posthog.capture('chats_load_error', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      });
+    } catch (err) {
+      console.error('Failed to load chats:', err);
+      posthog.capture('chats_load_error', { error: String(err) });
+    } finally {
+      setChatsLoading(false);
     }
   }, [userId]);
 
+  /* ── New chat ────────────────────────────────────────────────── */
   const handleNewChat = useCallback(() => {
-    // 📊 Track new chat button clicked
-    posthog.capture('new_chat_clicked', {
-      previousChatId: currentChatId,
-      messageCount: messages.length,
-      timestamp: new Date().toISOString(),
-    });
-
+    posthog.capture('new_chat_clicked', { previousChatId: currentChatId });
     setMessages([]);
     setCurrentChatId(null);
     setInput('');
     setLastUsage(null);
     setPendingFiles([]);
-  }, [currentChatId, messages.length]);
+  }, [currentChatId]);
 
+  /* ── Delete chat ─────────────────────────────────────────────── */
   const handleDeleteChat = useCallback(async (chatId: string) => {
-    // 📊 Track chat deletion
-    posthog.capture('chat_delete_initiated', {
-      chatId,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Optimistic update - immediately remove from UI
-    setChats((prevChats) => prevChats.filter((chat) => chat.id !== chatId));
-
-    // If deleting current chat, reset to new chat
+    posthog.capture('chat_delete_initiated', { chatId });
     if (currentChatId === chatId) {
-      setMessages([]);
-      setCurrentChatId(null);
-      setInput('');
-      setLastUsage(null);
-      setPendingFiles([]);
+      setMessages([]); setCurrentChatId(null); setInput(''); setLastUsage(null); setPendingFiles([]);
     }
-
     try {
       const supabase = createClient();
-
-      // Delete messages first (foreign key constraint)
-      const { error: messagesError } = await supabase
-        .from('messages')
-        .delete()
-        .eq('chat_id', chatId);
-
-      if (messagesError) {
-        throw messagesError;
-      }
-
-      // Delete the chat
-      const { error: chatError } = await supabase
-        .from('chats')
-        .delete()
-        .eq('id', chatId);
-
-      if (chatError) {
-        throw chatError;
-      }
-
-      // 📊 Track successful deletion
-      posthog.capture('chat_deleted_success', {
-        chatId,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error('Failed to delete chat:', error);
-
-      // 📊 Track deletion error
-      posthog.capture('chat_deleted_error', {
-        chatId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      });
-
-      // Rollback optimistic update by refetching
+      const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chatId);
+      if (msgErr) throw msgErr;
+      const { error: chatErr } = await supabase.from('chats').delete().eq('id', chatId);
+      if (chatErr) throw chatErr;
+      posthog.capture('chat_deleted_success', { chatId });
       await refreshChats();
-
-      alert('Gagal menghapus percakapan. Silakan coba lagi.');
+    } catch (err) {
+      console.error('Delete chat error:', err);
+      posthog.capture('chat_deleted_error', { chatId, error: String(err) });
+      throw err;
     }
   }, [currentChatId, refreshChats]);
 
+  /* ── Select chat ─────────────────────────────────────────────── */
   const handleSelectChat = useCallback(async (chat: ChatSession) => {
-    // 📊 Track chat selection
-    posthog.capture('chat_selected', {
-      chatId: chat.id,
-      chatTitle: chat.title,
-      chatModel: chat.defaultModel,
-      chatAge: Date.now() - chat.createdAt.getTime(),
-      timestamp: new Date().toISOString(),
-    });
-
+    posthog.capture('chat_selected', { chatId: chat.id, model: chat.defaultModel });
     setCurrentChatId(chat.id);
-    setSelectedModel(chat.defaultModel || DEFAULT_MODEL);
+    setSelectedModel((chat.defaultModel || DEFAULT_MODEL) as ModelId);
     setIsLoading(true);
-    
     try {
       const msgs = await getChatMessages(chat.id);
       setMessages(
@@ -167,35 +104,25 @@ export function ChatContainer({ userId }: ChatContainerProps) {
           files: m.files || [],
         }))
       );
-    } catch (error) {
-      console.error('Failed to load messages:', error);
-      
-      // 📊 Track error
-      posthog.capture('messages_load_error', {
-        chatId: chat.id,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      });
+    } catch (err) {
+      console.error('Load messages error:', err);
+      posthog.capture('messages_load_error', { chatId: chat.id, error: String(err) });
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  /* ── Send message ────────────────────────────────────────────── */
   const handleSend = async (files?: PendingFile[]) => {
     const trimmed = input.trim();
     if (!trimmed && (!files || files.length === 0)) return;
 
-    const messageStartTime = Date.now();
-
-    // 📊 Track message sent (before API call)
+    const t0 = Date.now();
     posthog.capture('message_sent', {
       model: selectedModel,
       messageLength: trimmed.length,
-      wordCount: trimmed.split(/\s+/).length,
-      hasAttachments: files && files.length > 0,
-      attachmentCount: files?.length || 0,
+      hasAttachments: !!(files?.length),
       isNewChat: !currentChatId,
-      timestamp: new Date().toISOString(),
     });
 
     let chatId = currentChatId;
@@ -205,70 +132,43 @@ export function ChatContainer({ userId }: ChatContainerProps) {
         const title = trimmed.slice(0, 60) || 'Chat Baru';
         chatId = await createChat(userId, title, selectedModel);
         setCurrentChatId(chatId);
+        posthog.capture('chat_created', { chatId, model: selectedModel });
         await refreshChats();
-
-        // 📊 Track chat created
-        posthog.capture('chat_created', {
-          chatId,
-          firstModel: selectedModel,
-          firstMessageLength: trimmed.length,
-          hasAttachments: files && files.length > 0,
-          timestamp: new Date().toISOString(),
-        });
-      } catch (error) {
-        console.error('Failed to create chat:', error);
-        
-        // 📊 Track error
-        posthog.capture('chat_creation_error', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString(),
-        });
-        
+      } catch (err) {
+        console.error('Create chat error:', err);
+        posthog.capture('chat_creation_error', { error: String(err) });
         return;
       }
     }
 
     if (!chatId) return;
 
-    const userMessage: Message = {
+    /* Optimistic user message */
+    const userMsg: Message = {
       id: uuidv4(),
       role: 'user',
       content: trimmed,
       timestamp: new Date(),
-      files: files?.map((f) => ({
-        name: f.name,
-        content: f.data,
-        extension: f.name.split('.').pop() || '',
-      })),
+      files: files?.map((f) => ({ name: f.name, content: f.data, extension: f.name.split('.').pop() || '' })),
     };
-
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((p) => [...p, userMsg]);
     setInput('');
     setPendingFiles([]);
     setIsLoading(true);
 
-    // Save user message
-    try {
-      await saveMessage(userMessage, chatId);
-    } catch (e) {
-      console.error('Failed to save user message:', e);
-    }
+    try { await saveMessage(userMsg, chatId); }
+    catch (e) { console.error('Save user msg failed:', e); }
 
-    // Placeholder untuk assistant
-    const assistantId = uuidv4();
-    const assistantPlaceholder: Message = {
-      id: assistantId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-      model: selectedModel,
-      isStreaming: true,
-    };
-    setMessages((prev) => [...prev, assistantPlaceholder]);
+    /* Assistant placeholder */
+    const aId = uuidv4();
+    setMessages((p) => [...p, {
+      id: aId, role: 'assistant', content: '', timestamp: new Date(),
+      model: selectedModel, isStreaming: true,
+    }]);
 
-    // Bangun messages untuk API - FILTER EMPTY
-    const apiMessages = [...messages, userMessage]
-      .filter((m) => m.content && m.content.trim().length > 0)
+    /* Build API messages */
+    const apiMessages = [...messages, userMsg]
+      .filter((m) => m.content?.trim().length > 0)
       .map((m) => ({
         role: m.role,
         content: m.files?.length
@@ -280,175 +180,99 @@ export function ChatContainer({ userId }: ChatContainerProps) {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: apiMessages,
-          model: selectedModel,
-          chatId,
-        }),
+        body: JSON.stringify({ messages: apiMessages, model: selectedModel }),
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({ error: 'API error' }));
-        throw new Error(errData.error || `HTTP ${res.status}`);
+        const err = await res.json().catch(() => ({ error: 'API error' }));
+        throw new Error(err.error || `HTTP ${res.status}`);
       }
 
-      const contentType = res.headers.get('Content-Type') || '';
-      const isStreaming = contentType.includes('text/event-stream');
-
+      const isStreaming = res.headers.get('Content-Type')?.includes('text/event-stream');
       let responseText = '';
       let usage: UsageInfo | null = null;
-      let firstChunkTime: number | null = null;
+      let firstChunk: number | null = null;
       let chunkCount = 0;
 
       if (isStreaming) {
-        // === Handle SSE Streaming (DeepSeek & Llama) ===
         const reader = res.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+        const dec = new TextDecoder();
+        let buf = '';
 
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop() ?? '';
 
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             const payload = line.slice(6).trim();
             if (payload === '[DONE]') break;
-
             try {
               const parsed = JSON.parse(payload);
-
               if (parsed.error) throw new Error(parsed.error);
-
               if (parsed.content) {
-                if (firstChunkTime === null) {
-                  firstChunkTime = Date.now();
-                  
-                  // 📊 Track first chunk received (TTFB)
+                if (firstChunk === null) {
+                  firstChunk = Date.now();
                   posthog.capture('first_chunk_received', {
-                    model: selectedModel,
-                    ttfb: firstChunkTime - messageStartTime,
-                    timestamp: new Date().toISOString(),
+                    model: selectedModel, ttfb: firstChunk - t0,
                   });
                 }
-                
                 chunkCount++;
                 responseText += parsed.content;
-                
-                // Update bubble secara real-time
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, content: responseText, isStreaming: true }
-                      : m
-                  )
+                setMessages((p) =>
+                  p.map((m) => m.id === aId ? { ...m, content: responseText, isStreaming: true } : m)
                 );
               }
-
               if (parsed.usage) {
-                usage = {
-                  model: selectedModel,
-                  inputTokens: parsed.usage.inputTokens,
-                  outputTokens: parsed.usage.outputTokens,
-                  costUSD: parsed.usage.costUSD,
-                };
+                usage = { model: selectedModel, ...parsed.usage };
               }
-            } catch (parseErr) {
-              // skip malformed chunk
-            }
+            } catch { /* skip malformed */ }
           }
         }
       } else {
-        // === Handle JSON Response (Claude non-streaming) ===
         const data = await res.json();
         responseText = data.content ?? '';
-        usage = data.usage ?? null;
+        if (data.usage) usage = { model: selectedModel, ...data.usage };
       }
 
-      const responseEndTime = Date.now();
-      const totalDuration = responseEndTime - messageStartTime;
-
-      // Finalize message
-      const assistantMessage: Message = {
-        id: assistantId,
-        role: 'assistant',
+      /* Finalise assistant message */
+      const finalMsg: Message = {
+        id: aId, role: 'assistant',
         content: responseText || '*(Tidak ada respons)*',
-        timestamp: new Date(),
-        model: selectedModel,
-        isStreaming: false,
+        timestamp: new Date(), model: selectedModel, isStreaming: false,
         tokens: usage ? { input: usage.inputTokens, output: usage.outputTokens } : undefined,
         cost: usage?.costUSD,
       };
-
-      setMessages((prev) =>
-        prev.map((m) => (m.id === assistantId ? assistantMessage : m))
-      );
-
+      setMessages((p) => p.map((m) => m.id === aId ? finalMsg : m));
       if (usage) setLastUsage(usage);
 
-      // 📊 Track response received (success)
       posthog.capture('response_received', {
-        model: selectedModel,
-        isStreaming,
-        inputTokens: usage?.inputTokens || 0,
-        outputTokens: usage?.outputTokens || 0,
-        cost: usage?.costUSD || 0,
+        model: selectedModel, isStreaming,
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        cost: usage?.costUSD ?? 0,
         responseLength: responseText.length,
-        wordCount: responseText.split(/\s+/).length,
-        duration: totalDuration,
-        ttfb: firstChunkTime ? firstChunkTime - messageStartTime : totalDuration,
-        chunkCount: isStreaming ? chunkCount : 1,
-        averageChunkSize: isStreaming && chunkCount > 0 ? responseText.length / chunkCount : 0,
-        timestamp: new Date().toISOString(),
+        duration: Date.now() - t0,
+        ttfb: firstChunk ? firstChunk - t0 : Date.now() - t0,
+        chunkCount,
       });
 
-      // Simpan ke Supabase HANYA jika ada konten
-      if (responseText && responseText.trim().length > 0) {
-        try {
-          await saveMessage(assistantMessage, chatId);
-          await refreshChats();
-        } catch (e) {
-          console.error('Failed to save assistant message:', e);
-          
-          // 📊 Track save error
-          posthog.capture('message_save_error', {
-            messageRole: 'assistant',
-            error: e instanceof Error ? e.message : 'Unknown error',
-            timestamp: new Date().toISOString(),
-          });
-        }
+      if (responseText.trim()) {
+        try { await saveMessage(finalMsg, chatId); await refreshChats(); }
+        catch (e) { console.error('Save assistant msg failed:', e); }
       }
-    } catch (error) {
-      const errorTime = Date.now();
-      const errorDuration = errorTime - messageStartTime;
-      
-      console.error('Chat error:', error);
-      const errMsg = error instanceof Error ? error.message : 'Terjadi error';
 
-      // 📊 Track chat error
-      posthog.capture('chat_error', {
-        model: selectedModel,
-        error: errMsg,
-        errorType: error instanceof Error ? error.constructor.name : 'Unknown',
-        duration: errorDuration,
-        messageLength: trimmed.length,
-        hasAttachments: files && files.length > 0,
-        timestamp: new Date().toISOString(),
-      });
-
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId
-            ? {
-                ...m,
-                content: `Maaf, terjadi kesalahan: ${errMsg}. Silakan coba lagi.`,
-                isStreaming: false,
-              }
-            : m
+    } catch (err) {
+      console.error('Chat error:', err);
+      const msg = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      posthog.capture('chat_error', { model: selectedModel, error: msg });
+      setMessages((p) =>
+        p.map((m) => m.id === aId
+          ? { ...m, content: `Maaf, terjadi kesalahan: ${msg}. Silakan coba lagi.`, isStreaming: false }
+          : m
         )
       );
     } finally {
@@ -456,21 +280,16 @@ export function ChatContainer({ userId }: ChatContainerProps) {
     }
   };
 
-  // 📊 Track model change from ChatContainer
   const handleModelChange = (modelId: ModelId) => {
     setSelectedModel(modelId);
-    
-    // Additional tracking if needed (already tracked in ModelSelector)
     if (messages.length > 0) {
       posthog.capture('model_changed_mid_conversation', {
-        newModel: modelId,
-        messageCount: messages.length,
-        chatId: currentChatId,
-        timestamp: new Date().toISOString(),
+        newModel: modelId, messageCount: messages.length, chatId: currentChatId,
       });
     }
   };
 
+  /* ── Render ──────────────────────────────────────────────────── */
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar
@@ -480,37 +299,33 @@ export function ChatContainer({ userId }: ChatContainerProps) {
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
-        isLoading={false}
+        isLoading={chatsLoading}
       />
 
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-14 border-b border-purple-100 glass-dark flex items-center justify-between px-3 lg:px-4 shrink-0 z-20">
-          <div className="flex items-center gap-2 pl-12 lg:pl-0">
+        <header className="h-14 sm:h-16 glass-dark border-b border-white/8 flex items-center justify-between px-4 lg:px-5 shrink-0 z-20">
+          <div className="flex items-center gap-3 pl-12 lg:pl-0">
             <ModelSelector
               selected={selectedModel}
               onSelect={handleModelChange}
               disabled={isLoading}
             />
           </div>
-
-          <div className="flex items-center gap-2">
-            {/* Status indicator */}
-            {isLoading && (
-              <div className="flex items-center gap-1.5 text-[10px] text-gray-600 glass-input px-2.5 py-1 rounded-full">
-                <div className="w-1 h-1 rounded-full bg-purple-400 animate-pulse shadow-sm shadow-purple-400" />
-                <span className="hidden sm:inline font-medium">Generating...</span>
-              </div>
-            )}
-          </div>
+          {isLoading && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-input text-xs text-white/70 font-medium">
+              <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+              <span className="hidden sm:inline">Generating…</span>
+            </div>
+          )}
         </header>
 
-        {/* Messages */}
+        {/* Messages (bottom padding = floating input height) */}
         <div className="flex-1 overflow-hidden flex flex-col min-h-0 pb-28 sm:pb-32">
           <MessageList messages={messages} isLoading={isLoading} />
         </div>
 
-        {/* Input - floating fixed */}
+        {/* Floating input */}
         <InputArea
           value={input}
           onChange={setInput}
@@ -518,13 +333,14 @@ export function ChatContainer({ userId }: ChatContainerProps) {
           isLoading={isLoading}
           disabled={isLoading}
           pendingFiles={pendingFiles}
-          onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
-          onRemoveFile={(id) => setPendingFiles((prev) => prev.filter((f) => f.id !== id))}
+          onAddFiles={(f) => setPendingFiles((p) => [...p, ...f])}
+          onRemoveFile={(id) => setPendingFiles((p) => p.filter((f) => f.id !== id))}
         />
       </main>
 
-      {/* Cost Toast */}
-      {lastUsage && <CostToast usage={lastUsage} onClose={() => setLastUsage(null)} />}
+      {lastUsage && (
+        <CostToast usage={lastUsage} onClose={() => setLastUsage(null)} />
+      )}
     </div>
   );
 }
