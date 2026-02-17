@@ -1,7 +1,7 @@
 'use client';
 
 import { useChat } from '@/hooks/useChat';
-import { ModelSelector } from '@/components/ModelSelector';
+import { ModelSelector } from '@/components/chat/ModelSelector';
 import { MODELS } from '@/lib/models/config';
 import { useState } from 'react';
 
