@@ -8,8 +8,8 @@ export type ExtractedFile = {
 
 export type ModelType = "claude" | "llama" | "deepseek";
 
-// Re-export ModelId from lib/models/config for backward compatibility
-export type { ModelId } from "@/lib/models/config";
+// Re-export ModelId and ModelConfig from lib/models/config
+export type { ModelId, ModelConfig } from "@/lib/models/config";
 
 export type MessageRole = "user" | "assistant" | "system";
 
@@ -40,15 +40,7 @@ export interface ChatSession {
   updatedAt: Date;
 }
 
-export interface ModelConfig {
-  id: ModelType;
-  name: string;
-  description: string;
-  maxTokens: number;
-  costPer1kInput: number;
-  costPer1kOutput: number;
-  available: boolean;
-}
+// Old ModelConfig removed - now using ModelConfig from @/lib/models/config
 
 export interface ApiResponse {
   content?: string;
