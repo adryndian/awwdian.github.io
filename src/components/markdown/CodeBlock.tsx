@@ -29,7 +29,7 @@ export function CodeBlock({ language, value, inline }: CodeBlockProps) {
   }
 
   return (
-    <div className="group relative my-3 rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+    <div className="group relative my-3 rounded-xl overflow-hidden border border-gray-200 shadow-sm max-w-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
         <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -53,8 +53,8 @@ export function CodeBlock({ language, value, inline }: CodeBlockProps) {
         </button>
       </div>
 
-      {/* Code */}
-      <div className="relative">
+      {/* Code with horizontal scroll */}
+      <div className="relative overflow-x-auto max-w-full">
         <SyntaxHighlighter
           language={language || 'text'}
           style={oneDark}
@@ -64,12 +64,19 @@ export function CodeBlock({ language, value, inline }: CodeBlockProps) {
             fontSize: '13px',
             lineHeight: '1.6',
             background: '#1e1e2e',
+            maxHeight: '400px',
+            overflowY: 'auto',
           }}
           codeTagProps={{
             style: {
               fontFamily: '"Fira Code", "Cascadia Code", "JetBrains Mono", monospace',
+              whiteSpace: 'pre',
+              wordBreak: 'normal',
+              overflowWrap: 'normal',
             },
           }}
+          wrapLongLines={false}
+          showLineNumbers={value.split('\n').length > 5}
         >
           {value}
         </SyntaxHighlighter>

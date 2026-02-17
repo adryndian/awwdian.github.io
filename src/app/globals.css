@@ -200,6 +200,9 @@ body {
   font-size: 15px;
   line-height: 1.7;
   color: var(--text-primary);
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 .prose-glass p {
   margin-bottom: 0.875em;
@@ -244,11 +247,14 @@ body {
 }
 .prose-glass table {
   width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
   margin: 0.875em 0;
   font-size: 0.9em;
   border-radius: 8px;
   overflow: hidden;
+  overflow-x: auto;
+  display: block;
 }
 .prose-glass th,
 .prose-glass td {
@@ -264,6 +270,45 @@ body {
   border: none;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
   margin: 1.5em 0;
+}
+
+/* Image & Video containers */
+.prose-glass img,
+.prose-glass video {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  .prose-glass {
+    font-size: 14px;
+  }
+  
+  .prose-glass table {
+    font-size: 0.85em;
+  }
+  
+  .prose-glass pre {
+    font-size: 12px;
+  }
+}
+
+/* Prevent text selection on double tap (iOS) */
+.glass-input,
+textarea {
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+/* Better touch targets for mobile */
+@media (max-width: 768px) {
+  button, 
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 /* Smooth transitions */

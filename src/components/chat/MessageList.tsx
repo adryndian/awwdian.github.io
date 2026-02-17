@@ -160,6 +160,39 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                               <CodeBlock inline value={value} />
                             );
                           },
+                          img(props) {
+                            const { node, src, alt, ...rest } = props;
+                            return (
+                              <div className="my-3 rounded-xl overflow-hidden border border-white/20 shadow-lg max-w-full">
+                                <img
+                                  src={src}
+                                  alt={alt || 'Image'}
+                                  className="w-full h-auto object-contain max-h-[400px] bg-black/20"
+                                  loading="lazy"
+                                  {...rest}
+                                />
+                                {alt && (
+                                  <div className="px-3 py-2 text-xs text-white/60 bg-black/20">
+                                    {alt}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          },
+                          video(props) {
+                            const { node, src, ...rest } = props;
+                            return (
+                              <div className="my-3 rounded-xl overflow-hidden border border-white/20 shadow-lg max-w-full">
+                                <video
+                                  src={src}
+                                  controls
+                                  className="w-full h-auto max-h-[400px] bg-black/20"
+                                  preload="metadata"
+                                  {...rest}
+                                />
+                              </div>
+                            );
+                          },
                         }}
                       >
                         {message.content}

@@ -92,8 +92,12 @@ export function Sidebar({
         }
       }
 
-      // Reload to refresh the chat list
-      window.location.reload();
+      // ✅ IMPROVED: Only reload if this is the current chat
+      // Otherwise just refresh the router to update the sidebar
+      if (currentChatId === chatId) {
+        router.push('/chat');
+      }
+      router.refresh();
     } catch (error) {
       console.error('Failed to delete chat:', error);
       alert('Gagal menghapus percakapan. Silakan coba lagi.');

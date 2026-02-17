@@ -80,8 +80,14 @@ export function InputArea({
 
   const handleSend = () => {
     if ((!value.trim() && pendingFiles.length === 0) || isLoading || disabled) return;
+    
+    // Immediate UI feedback
     setSendingState('sending');
-    onSend(pendingFiles.length > 0 ? pendingFiles : undefined);
+    
+    // Call onSend immediately without waiting
+    requestAnimationFrame(() => {
+      onSend(pendingFiles.length > 0 ? pendingFiles : undefined);
+    });
   };
 
   const canSend =
@@ -152,7 +158,7 @@ export function InputArea({
               onBlur={() => setIsFocused(false)}
               placeholder={isLoading ? 'AI sedang mengetik...' : 'Ketik pesan...'}
               disabled={isLoading || disabled}
-              className="flex-1 bg-transparent text-[15px] text-white placeholder-white/50 resize-none py-2.5 sm:py-3 focus:outline-none leading-relaxed"
+              className="flex-1 bg-transparent text-[16px] text-white placeholder-white/50 resize-none py-2.5 sm:py-3 focus:outline-none leading-relaxed"
               rows={1}
               style={{ maxHeight: '200px', minHeight: '40px' }}
               onKeyDown={(e) => {
