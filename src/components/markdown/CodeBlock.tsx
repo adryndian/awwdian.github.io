@@ -29,15 +29,15 @@ export function CodeBlock({ language, value, inline }: CodeBlockProps) {
   }
 
   return (
-    <div className="group relative my-3 rounded-xl overflow-hidden border border-gray-200 shadow-sm max-w-full">
+    <div className="group relative my-2 rounded-lg overflow-hidden border border-gray-200/50 shadow-sm w-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200/50">
+        <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">
           {language || 'code'}
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white hover:bg-gray-50 border border-gray-200 transition-all text-xs font-medium text-gray-600 hover:text-gray-900 shadow-sm"
+          className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white hover:bg-gray-50 border border-gray-200 transition-all text-[10px] font-medium text-gray-600 hover:text-gray-900 shadow-sm"
         >
           {copied ? (
             <>
@@ -53,33 +53,42 @@ export function CodeBlock({ language, value, inline }: CodeBlockProps) {
         </button>
       </div>
 
-      {/* Code with horizontal scroll */}
-      <div className="relative overflow-x-auto max-w-full">
-        <SyntaxHighlighter
-          language={language || 'text'}
-          style={oneDark}
-          customStyle={{
-            margin: 0,
-            padding: '1rem',
-            fontSize: '13px',
-            lineHeight: '1.6',
-            background: '#1e1e2e',
-            maxHeight: '400px',
-            overflowY: 'auto',
-          }}
-          codeTagProps={{
-            style: {
-              fontFamily: '"Fira Code", "Cascadia Code", "JetBrains Mono", monospace',
-              whiteSpace: 'pre',
-              wordBreak: 'normal',
-              overflowWrap: 'normal',
-            },
-          }}
-          wrapLongLines={false}
-          showLineNumbers={value.split('\n').length > 5}
-        >
-          {value}
-        </SyntaxHighlighter>
+      {/* Code with scroll - constrained to container */}
+      <div className="relative w-full overflow-x-auto">
+        <div style={{ maxWidth: '100%' }}>
+          <SyntaxHighlighter
+            language={language || 'text'}
+            style={oneDark}
+            customStyle={{
+              margin: 0,
+              padding: '0.75rem',
+              fontSize: '11px',
+              lineHeight: '1.5',
+              background: '#1e1e2e',
+              maxHeight: '320px',
+              overflowY: 'auto',
+              width: '100%',
+            }}
+            codeTagProps={{
+              style: {
+                fontFamily: '"Fira Code", "Cascadia Code", "JetBrains Mono", monospace',
+                whiteSpace: 'pre',
+                wordBreak: 'normal',
+                overflowWrap: 'normal',
+              },
+            }}
+            wrapLongLines={false}
+            showLineNumbers={value.split('\n').length > 5}
+            lineNumberStyle={{
+              minWidth: '2.5em',
+              paddingRight: '1em',
+              fontSize: '10px',
+              opacity: 0.5,
+            }}
+          >
+            {value}
+          </SyntaxHighlighter>
+        </div>
       </div>
     </div>
   );

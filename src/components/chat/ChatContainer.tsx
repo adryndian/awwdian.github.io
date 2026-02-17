@@ -11,6 +11,7 @@ import { DEFAULT_MODEL } from '@/lib/models/config';
 import { v4 as uuidv4 } from 'uuid';
 import { getUserChats, getChatMessages, createChat, saveMessage } from '@/app/actions/chat';
 import { posthog } from '@/lib/posthog';
+import { createClient } from '@/lib/supabase/client';
 
 interface ChatContainerProps {
   userId: string;
@@ -72,6 +73,70 @@ export function ChatContainer({ userId }: ChatContainerProps) {
     setLastUsage(null);
     setPendingFiles([]);
   }, [currentChatId, messages.length]);
+
+  const handleDeleteChat = useCallback(async (chatId: string) => {
+    // 📊 Track chat deletion
+    posthog.capture('chat_delete_initiated', {
+      chatId,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Optimistic update - immediately remove from UI
+    setChats((prevChats) => prevChats.filter((chat) => chat.id !== chatId));
+
+    // If deleting current chat, reset to new chat
+    if (currentChatId === chatId) {
+      setMessages([]);
+      setCurrentChatId(null);
+      setInput('');
+      setLastUsage(null);
+      setPendingFiles([]);
+    }
+
+    try {
+      const supabase = createClient();
+
+      // Delete messages first (foreign key constraint)
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('chat_id', chatId);
+
+      if (messagesError) {
+        throw messagesError;
+      }
+
+      // Delete the chat
+      const { error: chatError } = await supabase
+        .from('chats')
+        .delete()
+        .eq('id', chatId);
+
+      if (chatError) {
+        throw chatError;
+      }
+
+      // 📊 Track successful deletion
+      posthog.capture('chat_deleted_success', {
+        chatId,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Failed to delete chat:', error);
+
+      // 📊 Track deletion error
+      posthog.capture('chat_deleted_error', {
+        chatId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Rollback optimistic update by refetching
+      await refreshChats();
+
+      alert('Gagal menghapus percakapan. Silakan coba lagi.');
+    }
+  }, [currentChatId, refreshChats]);
 
   const handleSelectChat = useCallback(async (chat: ChatSession) => {
     // 📊 Track chat selection
@@ -413,13 +478,14 @@ export function ChatContainer({ userId }: ChatContainerProps) {
         currentChatId={currentChatId}
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
+        onDeleteChat={handleDeleteChat}
         isLoading={false}
       />
 
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-16 border-b border-white/10 glass-dark flex items-center justify-between px-4 lg:px-6 shrink-0 z-20">
-          <div className="flex items-center gap-3 pl-12 lg:pl-0">
+        <header className="h-14 border-b border-purple-100 glass-dark flex items-center justify-between px-3 lg:px-4 shrink-0 z-20">
+          <div className="flex items-center gap-2 pl-12 lg:pl-0">
             <ModelSelector
               selected={selectedModel}
               onSelect={handleModelChange}
@@ -430,16 +496,16 @@ export function ChatContainer({ userId }: ChatContainerProps) {
           <div className="flex items-center gap-2">
             {/* Status indicator */}
             {isLoading && (
-              <div className="flex items-center gap-2 text-xs text-white/80 glass-input px-3 py-1.5 rounded-full">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse shadow-sm shadow-blue-400" />
-                <span className="hidden sm:inline font-medium drop-shadow-sm">Generating...</span>
+              <div className="flex items-center gap-1.5 text-[10px] text-gray-600 glass-input px-2.5 py-1 rounded-full">
+                <div className="w-1 h-1 rounded-full bg-purple-400 animate-pulse shadow-sm shadow-purple-400" />
+                <span className="hidden sm:inline font-medium">Generating...</span>
               </div>
             )}
           </div>
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-hidden flex flex-col min-h-0 pb-32 sm:pb-36">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0 pb-28 sm:pb-32">
           <MessageList messages={messages} isLoading={isLoading} />
         </div>
 

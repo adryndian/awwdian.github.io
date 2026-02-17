@@ -16,9 +16,9 @@ interface MessageListProps {
 function TypingDots() {
   return (
     <div className="flex items-center gap-1.5 px-2 py-1">
-      <div className="w-2 h-2 rounded-full bg-white/60 dot-1" />
-      <div className="w-2 h-2 rounded-full bg-white/60 dot-2" />
-      <div className="w-2 h-2 rounded-full bg-white/60 dot-3" />
+      <div className="w-1.5 h-1.5 rounded-full bg-purple-400 dot-1" />
+      <div className="w-1.5 h-1.5 rounded-full bg-purple-400 dot-2" />
+      <div className="w-1.5 h-1.5 rounded-full bg-purple-400 dot-3" />
     </div>
   );
 }
@@ -101,13 +101,13 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
               >
                 {/* Model label */}
                 {!isUser && model && (
-                  <div className="flex items-center gap-2 px-2">
+                  <div className="flex items-center gap-1.5 px-1.5">
                     <span
-                      className="text-xs font-semibold drop-shadow px-2 py-0.5 rounded-full"
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                       style={{
                         color: model.color,
-                        backgroundColor: `${model.color}20`,
-                        border: `1px solid ${model.color}40`,
+                        backgroundColor: `${model.color}15`,
+                        border: `1px solid ${model.color}30`,
                       }}
                     >
                       {model.name}
@@ -117,22 +117,22 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
 
                 {/* Message bubble */}
                 <div
-                  className={`rounded-[20px] px-4 py-3.5 sm:px-5 sm:py-4 shadow-lg transition-smooth ${
+                  className={`rounded-2xl px-3 py-2.5 sm:px-3.5 sm:py-3 shadow-sm transition-smooth ${
                     isUser
-                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-md'
-                      : 'glass-card text-white rounded-tl-md'
+                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm'
+                      : 'glass-card text-gray-900 rounded-tl-sm'
                   }`}
                 >
                   {/* Attached files */}
                   {message.files && message.files.length > 0 && (
-                    <div className="mb-3 space-y-2">
+                    <div className="mb-2 space-y-1.5">
                       {message.files.map((file, idx) => (
                         <div
                           key={idx}
-                          className="glass-input rounded-xl px-3 py-2 flex items-center gap-2 text-sm"
+                          className="glass-input rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 text-xs"
                         >
-                          <div className="w-1.5 h-1.5 rounded-full bg-white/80 shadow-sm" />
-                          <span className="truncate font-medium text-white/90">
+                          <div className="w-1 h-1 rounded-full bg-purple-400 shadow-sm" />
+                          <span className="truncate font-medium text-gray-700">
                             {file.name}
                           </span>
                         </div>
@@ -163,16 +163,16 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                           img(props) {
                             const { node, src, alt, ...rest } = props;
                             return (
-                              <div className="my-3 rounded-xl overflow-hidden border border-white/20 shadow-lg max-w-full">
+                              <div className="my-2 rounded-lg overflow-hidden border border-purple-200 shadow-sm w-full">
                                 <img
                                   src={src}
                                   alt={alt || 'Image'}
-                                  className="w-full h-auto object-contain max-h-[400px] bg-black/20"
+                                  className="w-full h-auto object-contain max-h-[300px] bg-purple-50"
                                   loading="lazy"
                                   {...rest}
                                 />
                                 {alt && (
-                                  <div className="px-3 py-2 text-xs text-white/60 bg-black/20">
+                                  <div className="px-2.5 py-1.5 text-[10px] text-gray-600 bg-purple-50/50 border-t border-purple-100">
                                     {alt}
                                   </div>
                                 )}
@@ -182,11 +182,11 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                           video(props) {
                             const { node, src, ...rest } = props;
                             return (
-                              <div className="my-3 rounded-xl overflow-hidden border border-white/20 shadow-lg max-w-full">
+                              <div className="my-2 rounded-lg overflow-hidden border border-purple-200 shadow-sm w-full">
                                 <video
                                   src={src}
                                   controls
-                                  className="w-full h-auto max-h-[400px] bg-black/20"
+                                  className="w-full h-auto max-h-[300px] bg-purple-50"
                                   preload="metadata"
                                   {...rest}
                                 />

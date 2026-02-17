@@ -12,6 +12,7 @@ interface SidebarProps {
   currentChatId: string | null;
   onSelectChat: (chat: ChatSession) => void;
   onNewChat: () => void;
+  onDeleteChat: (chatId: string) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -20,6 +21,7 @@ export function Sidebar({
   currentChatId,
   onSelectChat,
   onNewChat,
+  onDeleteChat,
   isLoading,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,47 +62,9 @@ export function Sidebar({
     setDeletingId(chatId);
     
     try {
-      // Delete messages first (foreign key constraint)
-      const { error: messagesError } = await supabase
-        .from('messages')
-        .delete()
-        .eq('chat_id', chatId);
-      
-      if (messagesError) {
-        throw new Error(`Failed to delete messages: ${messagesError.message}`);
-      }
-
-      // Delete the chat
-      const { error: chatError } = await supabase
-        .from('chats')
-        .delete()
-        .eq('id', chatId);
-      
-      if (chatError) {
-        throw new Error(`Failed to delete chat: ${chatError.message}`);
-      }
-
-      // ✅ TRACKING: Chat deleted (only if PostHog is available)
-      if (typeof window !== 'undefined' && (window as any).posthog) {
-        try {
-          (window as any).posthog.capture('chat_deleted', {
-            chatId,
-            timestamp: new Date().toISOString(),
-          });
-        } catch (trackingError) {
-          console.warn('PostHog tracking failed:', trackingError);
-        }
-      }
-
-      // ✅ IMPROVED: Only reload if this is the current chat
-      // Otherwise just refresh the router to update the sidebar
-      if (currentChatId === chatId) {
-        router.push('/chat');
-      }
-      router.refresh();
+      await onDeleteChat(chatId);
     } catch (error) {
-      console.error('Failed to delete chat:', error);
-      alert('Gagal menghapus percakapan. Silakan coba lagi.');
+      console.error('Delete error in Sidebar:', error);
     } finally {
       setDeletingId(null);
     }

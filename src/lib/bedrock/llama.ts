@@ -9,6 +9,9 @@ export async function* streamLlama(
 
   const validMessages = messages.filter(m => m.content && m.content.trim().length > 0);
 
+  console.log('[Llama] Starting stream with model:', model.bedrockId);
+  console.log('[Llama] Message count:', validMessages.length);
+
   const command = new InvokeModelWithResponseStreamCommand({
     modelId: model.bedrockId,
     body: JSON.stringify({
@@ -25,15 +28,18 @@ export async function* streamLlama(
   });
 
   try {
+    console.log('[Llama] Sending command to Bedrock...');
     const response = await bedrockClient.send(command);
+    console.log('[Llama] Response received, starting stream...');
+    
     let inputTokens = 0;
     let outputTokens = 0;
+    let hasGeneratedContent = false;
 
     if (response.body) {
       for await (const event of response.body) {
         if (event.chunk?.bytes) {
           const raw = new TextDecoder().decode(event.chunk.bytes);
-          console.log('[Llama] Raw chunk:', raw); // Debug log
           
           try {
             const chunk = JSON.parse(raw);
@@ -42,6 +48,7 @@ export async function* streamLlama(
             if (chunk.generation !== undefined && chunk.generation !== null) {
               const text = chunk.generation;
               if (typeof text === 'string' && text.length > 0) {
+                hasGeneratedContent = true;
                 yield text;
               }
               if (chunk.prompt_token_count) inputTokens = chunk.prompt_token_count;
@@ -51,7 +58,10 @@ export async function* streamLlama(
             // Format 2: OpenAI-compatible { choices: [{ delta: { content } }] }
             if (chunk.choices?.[0]?.delta?.content) {
               const text = chunk.choices[0].delta.content;
-              if (text.length > 0) yield text;
+              if (text.length > 0) {
+                hasGeneratedContent = true;
+                yield text;
+              }
             }
 
             // Bedrock metrics
@@ -67,10 +77,26 @@ export async function* streamLlama(
       }
     }
 
+    if (!hasGeneratedContent) {
+      console.error('[Llama] No content generated!');
+      throw new Error('Llama did not generate any content. The model may be unavailable or rate limited.');
+    }
+
+    console.log('[Llama] Stream completed. Tokens:', { inputTokens, outputTokens });
     const costUSD = (inputTokens / 1000) * model.inputPricePer1K + (outputTokens / 1000) * model.outputPricePer1K;
     return { inputTokens, outputTokens, costUSD: Number(costUSD.toFixed(6)) };
   } catch (error) {
     console.error('[Llama] Stream error:', error);
+    if (error instanceof Error) {
+      // Provide helpful error messages
+      if (error.message.includes('ResourceNotFoundException')) {
+        throw new Error(`Llama model not available in region ${model.region}. Please check AWS Bedrock console.`);
+      } else if (error.message.includes('AccessDeniedException')) {
+        throw new Error('Access denied to Llama model. Please check IAM permissions.');
+      } else if (error.message.includes('ThrottlingException')) {
+        throw new Error('Llama request throttled. Please wait and try again.');
+      }
+    }
     throw error;
   }
 }

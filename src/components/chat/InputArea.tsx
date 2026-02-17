@@ -94,21 +94,21 @@ export function InputArea({
     (value.trim().length > 0 || pendingFiles.length > 0) && !isLoading && !disabled;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 px-4 pb-4 sm:pb-6">
+    <div className="fixed bottom-0 left-0 right-0 z-30 px-3 pb-3 sm:pb-4">
       <div className="max-w-4xl mx-auto">
         {/* Floating container with glassmorphism */}
         <div
           {...getRootProps()}
           className={`glass-card relative transition-all duration-300 ${
-            isFocused ? 'shadow-[var(--shadow-elevated)] scale-[1.01]' : 'shadow-[var(--shadow-glass)]'
-          } ${isDragActive ? 'ring-2 ring-blue-400 ring-opacity-60' : ''}`}
+            isFocused ? 'shadow-[var(--shadow-elevated)] scale-[1.005]' : 'shadow-[var(--shadow-glass)]'
+          } ${isDragActive ? 'ring-2 ring-purple-400 ring-opacity-60' : ''}`}
         >
           <input {...getInputProps()} />
 
           {/* Drag overlay */}
           {isDragActive && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-blue-500/20 backdrop-blur-sm z-10 animate-scaleIn">
-              <p className="text-base font-semibold text-white drop-shadow">
+            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-purple-500/10 backdrop-blur-sm z-10 animate-scaleIn">
+              <p className="text-sm font-semibold text-purple-700">
                 Lepaskan file di sini
               </p>
             </div>
@@ -116,19 +116,19 @@ export function InputArea({
 
           {/* File attachments preview */}
           {pendingFiles.length > 0 && (
-            <div className="flex flex-wrap gap-2 px-4 pt-3 pb-2 border-b border-white/10 animate-slideInRight">
+            <div className="flex flex-wrap gap-1.5 px-3 pt-2 pb-1.5 border-b border-purple-100 animate-slideInRight">
               {pendingFiles.map((file) => (
                 <div
                   key={file.id}
-                  className="glass-input rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-medium text-white/90 group"
+                  className="glass-input rounded-lg px-2.5 py-1 flex items-center gap-1.5 text-[10px] font-medium text-gray-700 group"
                 >
-                  <span className="truncate max-w-[150px]">{file.name}</span>
+                  <span className="truncate max-w-[120px]">{file.name}</span>
                   {onRemoveFile && (
                     <button
                       onClick={() => onRemoveFile(file.id)}
-                      className="text-white/50 hover:text-white transition-smooth shrink-0"
+                      className="text-gray-400 hover:text-gray-700 transition-smooth shrink-0"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-3 h-3" />
                     </button>
                   )}
                 </div>
@@ -137,16 +137,16 @@ export function InputArea({
           )}
 
           {/* Input row */}
-          <div className="flex items-end gap-2 sm:gap-3 px-3 sm:px-4 py-3">
+          <div className="flex items-end gap-2 px-2.5 sm:px-3 py-2">
             {/* Attach button */}
             <button
               type="button"
               onClick={open}
               disabled={isLoading || disabled}
-              className="p-2.5 sm:p-3 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-smooth disabled:opacity-40 shrink-0 mb-0.5"
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-purple-50 transition-smooth disabled:opacity-40 shrink-0"
               title="Attach file"
             >
-              <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Paperclip className="w-4 h-4" />
             </button>
 
             {/* Textarea */}
@@ -158,6 +158,16 @@ export function InputArea({
               onBlur={() => setIsFocused(false)}
               placeholder={isLoading ? 'AI sedang mengetik...' : 'Ketik pesan...'}
               disabled={isLoading || disabled}
+              className="flex-1 bg-transparent text-[16px] text-gray-900 placeholder-gray-400 resize-none py-2 focus:outline-none leading-relaxed"
+              rows={1}
+              style={{ maxHeight: '160px', minHeight: '36px' }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
               className="flex-1 bg-transparent text-[16px] text-white placeholder-white/50 resize-none py-2.5 sm:py-3 focus:outline-none leading-relaxed"
               rows={1}
               style={{ maxHeight: '200px', minHeight: '40px' }}
@@ -173,25 +183,25 @@ export function InputArea({
             <button
               onClick={handleSend}
               disabled={!canSend}
-              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-[14px] flex items-center justify-center shrink-0 mb-0.5 transition-all duration-300 ${
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
                 canSend
-                  ? 'bg-gradient-to-br from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 shadow-lg shadow-blue-500/40 hover:shadow-blue-500/60 hover:scale-105'
-                  : 'bg-white/10 text-white/30 cursor-not-allowed'
+                  ? 'bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-md shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-105'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               } ${sendingState === 'sending' ? 'animate-pulse' : ''} ${
                 sendingState === 'sent' ? 'scale-110' : ''
               }`}
               title="Send (Enter)"
             >
               {isLoading ? (
-                <Loader2 className="w-5 h-5 text-white animate-spin" />
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
               ) : (
-                <ArrowUp className="w-5 h-5 text-white" />
+                <ArrowUp className="w-4 h-4 text-white" />
               )}
             </button>
           </div>
 
           {/* Hint */}
-          <div className="px-4 pb-3 flex items-center justify-between text-[11px] text-white/40">
+          <div className="px-3 pb-2 flex items-center justify-between text-[10px] text-gray-500">
             <span>Enter kirim • Shift+Enter baris baru</span>
             {value.length > 0 && <span>{value.length} karakter</span>}
           </div>
