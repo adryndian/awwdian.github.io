@@ -10,6 +10,7 @@ import { Message, ChatSession, UsageInfo, ModelId } from '@/types';
 import { DEFAULT_MODEL } from '@/lib/models/config';
 import { v4 as uuidv4 } from 'uuid';
 import { getUserChats, getChatMessages, createChat, saveMessage } from '@/app/actions/chat';
+import { posthog } from '@/lib/posthog';
 
 interface ChatContainerProps {
   userId: string;
@@ -32,6 +33,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
   const [lastUsage, setLastUsage] = useState<UsageInfo | null>(null);
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+
   const refreshChats = useCallback(async () => {
     try {
       const data = await getUserChats(userId);
@@ -47,21 +49,44 @@ export function ChatContainer({ userId }: ChatContainerProps) {
       );
     } catch (error) {
       console.error('Failed to load chats:', error);
+      
+      // 📊 Track error
+      posthog.capture('chats_load_error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      });
     }
   }, [userId]);
 
   const handleNewChat = useCallback(() => {
+    // 📊 Track new chat button clicked
+    posthog.capture('new_chat_clicked', {
+      previousChatId: currentChatId,
+      messageCount: messages.length,
+      timestamp: new Date().toISOString(),
+    });
+
     setMessages([]);
     setCurrentChatId(null);
     setInput('');
     setLastUsage(null);
     setPendingFiles([]);
-  }, []);
+  }, [currentChatId, messages.length]);
 
   const handleSelectChat = useCallback(async (chat: ChatSession) => {
+    // 📊 Track chat selection
+    posthog.capture('chat_selected', {
+      chatId: chat.id,
+      chatTitle: chat.title,
+      chatModel: chat.defaultModel,
+      chatAge: Date.now() - chat.createdAt.getTime(),
+      timestamp: new Date().toISOString(),
+    });
+
     setCurrentChatId(chat.id);
     setSelectedModel(chat.defaultModel || DEFAULT_MODEL);
     setIsLoading(true);
+    
     try {
       const msgs = await getChatMessages(chat.id);
       setMessages(
@@ -78,6 +103,13 @@ export function ChatContainer({ userId }: ChatContainerProps) {
       );
     } catch (error) {
       console.error('Failed to load messages:', error);
+      
+      // 📊 Track error
+      posthog.capture('messages_load_error', {
+        chatId: chat.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      });
     } finally {
       setIsLoading(false);
     }
@@ -87,6 +119,19 @@ export function ChatContainer({ userId }: ChatContainerProps) {
     const trimmed = input.trim();
     if (!trimmed && (!files || files.length === 0)) return;
 
+    const messageStartTime = Date.now();
+
+    // 📊 Track message sent (before API call)
+    posthog.capture('message_sent', {
+      model: selectedModel,
+      messageLength: trimmed.length,
+      wordCount: trimmed.split(/\s+/).length,
+      hasAttachments: files && files.length > 0,
+      attachmentCount: files?.length || 0,
+      isNewChat: !currentChatId,
+      timestamp: new Date().toISOString(),
+    });
+
     let chatId = currentChatId;
 
     if (!chatId) {
@@ -95,8 +140,24 @@ export function ChatContainer({ userId }: ChatContainerProps) {
         chatId = await createChat(userId, title, selectedModel);
         setCurrentChatId(chatId);
         await refreshChats();
+
+        // 📊 Track chat created
+        posthog.capture('chat_created', {
+          chatId,
+          firstModel: selectedModel,
+          firstMessageLength: trimmed.length,
+          hasAttachments: files && files.length > 0,
+          timestamp: new Date().toISOString(),
+        });
       } catch (error) {
         console.error('Failed to create chat:', error);
+        
+        // 📊 Track error
+        posthog.capture('chat_creation_error', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+        });
+        
         return;
       }
     }
@@ -139,7 +200,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
     };
     setMessages((prev) => [...prev, assistantPlaceholder]);
 
-    // Bangun messages untuk API - FILTER EMPTY untuk mencegah ValidationException
+    // Bangun messages untuk API - FILTER EMPTY
     const apiMessages = [...messages, userMessage]
       .filter((m) => m.content && m.content.trim().length > 0)
       .map((m) => ({
@@ -170,6 +231,8 @@ export function ChatContainer({ userId }: ChatContainerProps) {
 
       let responseText = '';
       let usage: UsageInfo | null = null;
+      let firstChunkTime: number | null = null;
+      let chunkCount = 0;
 
       if (isStreaming) {
         // === Handle SSE Streaming (DeepSeek & Llama) ===
@@ -196,7 +259,20 @@ export function ChatContainer({ userId }: ChatContainerProps) {
               if (parsed.error) throw new Error(parsed.error);
 
               if (parsed.content) {
+                if (firstChunkTime === null) {
+                  firstChunkTime = Date.now();
+                  
+                  // 📊 Track first chunk received (TTFB)
+                  posthog.capture('first_chunk_received', {
+                    model: selectedModel,
+                    ttfb: firstChunkTime - messageStartTime,
+                    timestamp: new Date().toISOString(),
+                  });
+                }
+                
+                chunkCount++;
                 responseText += parsed.content;
+                
                 // Update bubble secara real-time
                 setMessages((prev) =>
                   prev.map((m) =>
@@ -227,6 +303,9 @@ export function ChatContainer({ userId }: ChatContainerProps) {
         usage = data.usage ?? null;
       }
 
+      const responseEndTime = Date.now();
+      const totalDuration = responseEndTime - messageStartTime;
+
       // Finalize message
       const assistantMessage: Message = {
         id: assistantId,
@@ -245,6 +324,22 @@ export function ChatContainer({ userId }: ChatContainerProps) {
 
       if (usage) setLastUsage(usage);
 
+      // 📊 Track response received (success)
+      posthog.capture('response_received', {
+        model: selectedModel,
+        isStreaming,
+        inputTokens: usage?.inputTokens || 0,
+        outputTokens: usage?.outputTokens || 0,
+        cost: usage?.costUSD || 0,
+        responseLength: responseText.length,
+        wordCount: responseText.split(/\s+/).length,
+        duration: totalDuration,
+        ttfb: firstChunkTime ? firstChunkTime - messageStartTime : totalDuration,
+        chunkCount: isStreaming ? chunkCount : 1,
+        averageChunkSize: isStreaming && chunkCount > 0 ? responseText.length / chunkCount : 0,
+        timestamp: new Date().toISOString(),
+      });
+
       // Simpan ke Supabase HANYA jika ada konten
       if (responseText && responseText.trim().length > 0) {
         try {
@@ -252,11 +347,33 @@ export function ChatContainer({ userId }: ChatContainerProps) {
           await refreshChats();
         } catch (e) {
           console.error('Failed to save assistant message:', e);
+          
+          // 📊 Track save error
+          posthog.capture('message_save_error', {
+            messageRole: 'assistant',
+            error: e instanceof Error ? e.message : 'Unknown error',
+            timestamp: new Date().toISOString(),
+          });
         }
       }
     } catch (error) {
+      const errorTime = Date.now();
+      const errorDuration = errorTime - messageStartTime;
+      
       console.error('Chat error:', error);
       const errMsg = error instanceof Error ? error.message : 'Terjadi error';
+
+      // 📊 Track chat error
+      posthog.capture('chat_error', {
+        model: selectedModel,
+        error: errMsg,
+        errorType: error instanceof Error ? error.constructor.name : 'Unknown',
+        duration: errorDuration,
+        messageLength: trimmed.length,
+        hasAttachments: files && files.length > 0,
+        timestamp: new Date().toISOString(),
+      });
+
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
@@ -270,6 +387,21 @@ export function ChatContainer({ userId }: ChatContainerProps) {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 📊 Track model change from ChatContainer
+  const handleModelChange = (modelId: ModelId) => {
+    setSelectedModel(modelId);
+    
+    // Additional tracking if needed (already tracked in ModelSelector)
+    if (messages.length > 0) {
+      posthog.capture('model_changed_mid_conversation', {
+        newModel: modelId,
+        messageCount: messages.length,
+        chatId: currentChatId,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
@@ -290,7 +422,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
           <div className="flex items-center gap-3 pl-12 lg:pl-0">
             <ModelSelector
               selected={selectedModel}
-              onSelect={setSelectedModel}
+              onSelect={handleModelChange}
               disabled={isLoading}
             />
           </div>
@@ -325,9 +457,7 @@ export function ChatContainer({ userId }: ChatContainerProps) {
       </main>
 
       {/* Cost Toast */}
-      {lastUsage && (
-        <CostToast usage={lastUsage} onClose={() => setLastUsage(null)} />
-      )}
+      {lastUsage && <CostToast usage={lastUsage} onClose={() => setLastUsage(null)} />}
     </div>
   );
 }

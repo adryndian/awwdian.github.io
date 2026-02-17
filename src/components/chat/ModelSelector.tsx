@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Zap, Brain, Cpu, Flame, Check } from 'lucide-react';
 import { ModelId } from '@/types';
 import { MODELS } from '@/lib/models/config';
+import { posthog } from '@/lib/posthog';
 
 interface ModelSelectorProps {
   selected: ModelId;
@@ -41,10 +42,50 @@ export function ModelSelector({ selected, onSelect, disabled }: ModelSelectorPro
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // 📊 Track dropdown opened
+  const handleToggle = () => {
+    if (disabled) return;
+    
+    const newState = !isOpen;
+    setIsOpen(newState);
+    
+    if (newState) {
+      posthog.capture('model_selector_opened', {
+        currentModel: selected,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  };
+
+  // 📊 Track model selection
+  const handleModelSelect = (modelId: ModelId) => {
+    const previousModel = selected;
+    const newModel = MODELS[modelId];
+    const oldModel = MODELS[previousModel];
+
+    // Track model change
+    posthog.capture('model_selected', {
+      modelId: modelId,
+      modelName: newModel.name,
+      modelProvider: modelBadge[modelId],
+      previousModelId: previousModel,
+      previousModelName: oldModel.name,
+      supportsStreaming: newModel.supportsStreaming,
+      priceDifference: {
+        input: newModel.inputPricePer1K - oldModel.inputPricePer1K,
+        output: newModel.outputPricePer1K - oldModel.outputPricePer1K,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    onSelect(modelId);
+    setIsOpen(false);
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={handleToggle}
         disabled={disabled}
         className="flex items-center gap-2.5 px-3 sm:px-4 py-2 rounded-xl glass-input text-sm font-semibold text-white transition-all hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
       >
@@ -72,10 +113,7 @@ export function ModelSelector({ selected, onSelect, disabled }: ModelSelectorPro
             return (
               <button
                 key={modelId}
-                onClick={() => {
-                  onSelect(modelId);
-                  setIsOpen(false);
-                }}
+                onClick={() => handleModelSelect(modelId)}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all ${
                   isSelected ? 'bg-white/20' : 'hover:bg-white/10'
                 }`}

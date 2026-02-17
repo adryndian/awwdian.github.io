@@ -1,23 +1,31 @@
-import './globals.css'
+'use client';
 
-export const metadata = {
-  title: 'BeckRock AI',
-  description: 'AI Chat powered by AWS Bedrock',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
-}
+import { useEffect } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { initPostHog, posthog } from '@/lib/posthog';
+import './globals.css';
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    initPostHog();
+  }, []);
+
+  useEffect(() => {
+    if (pathname) {
+      let url = window.origin + pathname;
+      if (searchParams && searchParams.toString()) {
+        url = url + `?${searchParams.toString()}`;
+      }
+      posthog.capture('$pageview', { $current_url: url });
+    }
+  }, [pathname, searchParams]);
+
   return (
     <html lang="id" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-      </head>
       <body className="h-full antialiased">{children}</body>
     </html>
-  )
+  );
 }

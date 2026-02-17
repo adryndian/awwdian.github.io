@@ -56,7 +56,15 @@ export function Sidebar({
     try {
       await supabase.from('messages').delete().eq('chat_id', chatId);
       const { error } = await supabase.from('chats').delete().eq('id', chatId);
-      if (!error) window.location.reload();
+      if (!error) 
+      
+      // ✅ TRACKING: Chat deleted
+        posthog.capture('chat_deleted', {
+          chatId,
+          timestamp: new Date().toISOString(),
+        });
+                  
+      window.location.reload();
     } catch (error) {
       console.error('Failed to delete:', error);
     } finally {

@@ -1,11 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Hapus experimental.serverActions - sudah GA di Next.js 14
   experimental: {
     // Kosongkan atau isi dengan fitur experimental lain yang valid
   },
   
-  // Konfigurasi image jika perlu
+  // Konfigurasi image
   images: {
     remotePatterns: [
       {
@@ -22,4 +21,21 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+// Sentry configuration
+const { withSentryConfig } = require('@sentry/nextjs');
+
+module.exports = withSentryConfig(
+  nextConfig,
+  {
+    silent: true,
+    org: "your-org", // ⚠️ Ganti dengan org Sentry Anda
+    project: "beckrock-ai",
+  },
+  {
+    widenClientFileUpload: true,
+    transpileClientSDK: true,
+    tunnelRoute: "/monitoring",
+    hideSourceMaps: true,
+    disableLogger: true,
+  }
+);
