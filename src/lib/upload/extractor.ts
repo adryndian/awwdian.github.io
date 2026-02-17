@@ -22,7 +22,7 @@ const ALLOWED_EXTENSIONS = [
  */
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB per file
 const MAX_FILES = 10; // Maksimal 10 file per ZIP
-const MAX_CONTENT_LENGTH = 5000000000; // 50k karakter per file
+const MAX_CONTENT_LENGTH = 5000000; // 50k karakter per file
 
 /**
  * Fungsi utama untuk ekstrak ZIP file

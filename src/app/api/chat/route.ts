@@ -41,7 +41,7 @@ function validateMessages(messages: unknown[]): {
     if (typeof msg.content !== 'string')
       return { valid: false, error: `Message[${i}] content must be a string` };
 
-    if ((msg.content as string).length > 5000000000)
+    if ((msg.content as string).length > 5000000)
       return { valid: false, error: `Message[${i}] exceeds 50,000 character limit` };
 
     validated.push({
