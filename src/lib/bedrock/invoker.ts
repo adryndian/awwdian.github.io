@@ -13,10 +13,9 @@ import { PayloadTransformer } from './transformers';
 import { 
   ChatRequest, 
   ChatResponse, 
-  ModelConfig,
   ChatMessage 
 } from '@/lib/models/types';
-import { getModelConfig } from '@/lib/models/config';
+import { ModelConfig, getModelConfig } from '@/types';
 
 export class BedrockInvoker {
   /**
