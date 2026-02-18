@@ -6,8 +6,17 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from 'next/server';
 import { BedrockInvoker } from '@/lib/bedrock/invoker';
 import type { ChatRequest } from '@/lib/models/types';
-import { DEFAULT_MODEL, isValidModelId, calculateCost } from '@/lib/models/config';
+import { DEFAULT_MODEL, isValidModelId, MODELS } from '@/lib/models/config';
 import type { ModelId } from '@/types';
+
+// Hitung cost langsung di sini - tidak import calculateCost dari config
+function calculateCost(modelId: ModelId, inputTokens: number, outputTokens: number): number {
+  const model = MODELS[modelId];
+  if (!model) return 0;
+  const inputCost = (inputTokens / 1000) * model.inputPricePer1K;
+  const outputCost = (outputTokens / 1000) * model.outputPricePer1K;
+  return Number((inputCost + outputCost).toFixed(6));
+}
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
