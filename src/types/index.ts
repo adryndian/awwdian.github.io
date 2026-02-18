@@ -1,17 +1,30 @@
 // src/types/index.ts
 
-// Re-export types dari config.ts (hapus definisi ModelId manual sebelumnya)
-export type { ModelId } from '@/lib/models/config';
-export { MODELS, DEFAULT_MODEL, AWS_REGION, isValidModelId, getModelConfig } from '@/lib/models/config';
+// Definisikan ModelId LANGSUNG di sini (tidak import dari config.ts)
+export type ModelId = 
+  | 'us.anthropic.claude-opus-4-6-v1'
+  | 'us.anthropic.claude-sonnet-4-0-v1'
+  | 'us.meta.llama4-maverick-17b-instruct-v1';
+
+// Definisikan ModelConfig juga di sini (untuk digunakan config.ts)
+export interface ModelConfig {
+  id: ModelId;
+  name: string;
+  provider: 'anthropic' | 'meta';
+  maxTokens: number;
+  supportsStreaming: boolean;
+  supportsThinking?: boolean;
+  description: string;
+  costLevel: 'high' | 'medium' | 'low';
+}
+
+// Tidak ada re-export dari '@/lib/models/config' untuk menghindari circular dependency
 
 export type ExtractedFile = {
   name: string;
   extension: string;
   content: string;
 };
-
-// Hapus definisi ModelId yang lama (yang pakai union string manual)
-// Karena sekarang di-export dari config.ts
 
 export type MessageRole = "user" | "assistant" | "system";
 
@@ -20,7 +33,7 @@ export interface Message {
   role: MessageRole;
   content: string;
   timestamp: Date;
-  model?: string; // Bisa juga pakai ModelId jika perlu
+  model?: ModelId;
   cost?: number;
   files?: FileAttachment[];
 }
@@ -37,7 +50,7 @@ export interface ChatSession {
   id: string;
   title: string;
   messages: Message[];
-  model: string; // atau ModelId jika strict
+  model: ModelId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,7 +66,7 @@ export interface ApiResponse {
 }
 
 export interface SendMessagePayload {
-  model: string; // atau ModelId
+  model: ModelId;
   message: string;
   history: {
     role: MessageRole;
