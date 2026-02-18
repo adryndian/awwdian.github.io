@@ -1,7 +1,4 @@
-// ============================================================
-// src/lib/models/types.ts — Types spesifik untuk Bedrock layer
-// ============================================================
-
+// src/lib/models/types.ts
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;

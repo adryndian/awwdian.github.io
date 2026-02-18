@@ -22,7 +22,7 @@ export function useChat(options: UseChatOptions = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentModel, setCurrentModel] = useState<ModelId>(
-    options.initialModel || DEFAULT_MODEL
+    (options.initialModel || DEFAULT_MODEL) as ModelId
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -49,8 +49,7 @@ export function useChat(options: UseChatOptions = {}) {
               content: m.content,
             })),
             modelId: currentModel,
-            enableThinking:
-              enableThinking && currentModel === 'us.anthropic.claude-opus-4-6-v1:0',
+            enableThinking: enableThinking && currentModel === 'us.anthropic.claude-opus-4-6-v1:0',
             stream: false,
           }),
         });
@@ -61,18 +60,18 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         const data = await response.json();
-
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: data.content,
-          thinking: data.thinking,
-          model: data.model,
-          cost: data.cost,
-          timestamp: new Date(),
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: data.content,
+            thinking: data.thinking,
+            model: data.model,
+            cost: data.cost,
+            timestamp: new Date(),
+          },
+        ]);
       } catch (err: any) {
         setError(err.message);
         console.error('[useChat] Error:', err);
@@ -83,18 +82,10 @@ export function useChat(options: UseChatOptions = {}) {
     [messages, currentModel]
   );
 
-  const clearChat = useCallback(() => {
-    setMessages([]);
-    setError(null);
-  }, []);
+  const clearChat = useCallback(() => { setMessages([]); setError(null); }, []);
 
-  // changeModel: validasi sebelum set
   const changeModel = useCallback((newModelId: string) => {
-    if (isValidModelId(newModelId)) {
-      setCurrentModel(newModelId as ModelId);
-    } else {
-      console.error('[useChat] Invalid model ID:', newModelId);
-    }
+    if (isValidModelId(newModelId)) setCurrentModel(newModelId as ModelId);
   }, []);
 
   return {
@@ -105,8 +96,7 @@ export function useChat(options: UseChatOptions = {}) {
     models: Object.values(MODELS),
     sendMessage,
     clearChat,
-    // setCurrentModel: alias langsung ke changeModel agar kompatibel dengan page.tsx
-    setCurrentModel: changeModel,
     changeModel,
+    setCurrentModel: changeModel,
   };
 }

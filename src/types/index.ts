@@ -1,12 +1,4 @@
-// ============================================================
-// src/types/index.ts — Single source of truth untuk semua types
-// JANGAN import dari @/lib/models/config di sini (circular dependency)
-// ============================================================
-
-/**
- * Model IDs — harus match PERSIS dengan MODEL_IDS di lib/models/config.ts
- * Format: us.<provider>.<model-slug>:<version>
- */
+// src/types/index.ts
 export type ModelId =
   | 'us.anthropic.claude-opus-4-6-v1:0'
   | 'us.anthropic.claude-sonnet-4-0-v1:0'

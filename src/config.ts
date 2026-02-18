@@ -1,9 +1,4 @@
-// ============================================================
-// src/config.ts — Re-export dari lib/models/config.ts
-// File ini dipertahankan untuk backward compatibility.
-// Gunakan @/lib/models/config untuk import baru.
-// ============================================================
-
+// src/config.ts - re-export untuk backward compatibility
 export {
   MODELS,
   MODEL_IDS,

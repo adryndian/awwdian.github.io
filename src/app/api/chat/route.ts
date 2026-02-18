@@ -1,5 +1,5 @@
 // src/app/api/chat/route.ts
-// PENTING: runtime = 'nodejs' wajib - AWS SDK tidak kompatibel dengan edge runtime
+// PENTING: runtime nodejs wajib - AWS SDK tidak kompatibel dengan edge runtime
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
@@ -9,7 +9,6 @@ import type { ChatRequest } from '@/lib/models/types';
 import { DEFAULT_MODEL, isValidModelId, MODELS } from '@/lib/models/config';
 import type { ModelId } from '@/types';
 
-// Hitung cost langsung di sini - tidak import calculateCost dari config
 function calculateCost(modelId: ModelId, inputTokens: number, outputTokens: number): number {
   const model = MODELS[modelId];
   if (!model) return 0;
@@ -20,11 +19,10 @@ function calculateCost(modelId: ModelId, inputTokens: number, outputTokens: numb
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
-
   try {
     const body = await req.json();
-
     const modelId = body.modelId || DEFAULT_MODEL;
+
     if (!isValidModelId(modelId)) {
       return NextResponse.json(
         {
@@ -50,10 +48,7 @@ export async function POST(req: NextRequest) {
     };
 
     if (!chatRequest.messages.length) {
-      return NextResponse.json(
-        { error: 'messages array cannot be empty' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'messages array cannot be empty' }, { status: 400 });
     }
 
     if (chatRequest.stream) {
@@ -72,11 +67,7 @@ export async function POST(req: NextRequest) {
 
     let cost: number | undefined;
     if (response.usage) {
-      cost = calculateCost(
-        modelId as ModelId,
-        response.usage.inputTokens,
-        response.usage.outputTokens
-      );
+      cost = calculateCost(modelId as ModelId, response.usage.inputTokens, response.usage.outputTokens);
     }
 
     return NextResponse.json({
@@ -92,11 +83,7 @@ export async function POST(req: NextRequest) {
     const duration = Date.now() - startTime;
     console.error('[API Chat Error]:', error);
     return NextResponse.json(
-      {
-        error: error.message || 'Internal server error',
-        duration,
-        timestamp: new Date().toISOString(),
-      },
+      { error: error.message || 'Internal server error', duration, timestamp: new Date().toISOString() },
       { status: 500 }
     );
   }
@@ -109,14 +96,12 @@ async function createStream(request: ChatRequest): Promise<ReadableStream> {
       try {
         const generator = BedrockInvoker.invokeStream(request);
         for await (const chunk of generator) {
-          const data = 'data: ' + JSON.stringify({ content: chunk }) + '\n\n';
-          controller.enqueue(encoder.encode(data));
+          controller.enqueue(encoder.encode('data: ' + JSON.stringify({ content: chunk }) + '\n\n'));
         }
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       } catch (error) {
-        const errorData = 'data: ' + JSON.stringify({ error: (error as Error).message }) + '\n\n';
-        controller.enqueue(encoder.encode(errorData));
+        controller.enqueue(encoder.encode('data: ' + JSON.stringify({ error: (error as Error).message }) + '\n\n'));
         controller.close();
       }
     },

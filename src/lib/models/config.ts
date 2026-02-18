@@ -6,10 +6,10 @@ export { type ModelId } from '@/types';
 export const AWS_REGION = process.env.AWS_REGION || 'us-west-2';
 
 export const MODEL_IDS = {
-  CLAUDE_OPUS_4_6:  'us.anthropic.claude-opus-4-6-v1:0',
-  CLAUDE_SONNET_4_0:'us.anthropic.claude-sonnet-4-0-v1:0',
-  DEEPSEEK_R1:      'us.deepseek.r1-v1:0',
-  LLAMA_4_MAVERICK: 'us.meta.llama4-maverick-17b-instruct-v1:0',
+  CLAUDE_OPUS_4_6:   'us.anthropic.claude-opus-4-6-v1:0',
+  CLAUDE_SONNET_4_0: 'us.anthropic.claude-sonnet-4-0-v1:0',
+  DEEPSEEK_R1:       'us.deepseek.r1-v1:0',
+  LLAMA_4_MAVERICK:  'us.meta.llama4-maverick-17b-instruct-v1:0',
 } as const;
 
 export const MODELS: Record<ModelId, ModelConfig> = {
@@ -71,9 +71,7 @@ export function isValidModelId(id: string): id is ModelId {
 
 export function getModelConfig(id: string): ModelConfig {
   if (!isValidModelId(id)) {
-    throw new Error(
-      'Invalid model ID: ' + id + '. Available: ' + Object.values(MODEL_IDS).join(', ')
-    );
+    throw new Error('Invalid model ID: ' + id);
   }
   return MODELS[id as ModelId];
 }
@@ -84,6 +82,7 @@ export function calculateCost(
   outputTokens: number
 ): number {
   const model = MODELS[modelId];
+  if (!model) return 0;
   const inputCost = (inputTokens / 1000) * model.inputPricePer1K;
   const outputCost = (outputTokens / 1000) * model.outputPricePer1K;
   return Number((inputCost + outputCost).toFixed(6));
