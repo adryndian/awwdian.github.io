@@ -1,11 +1,10 @@
-// src/config.ts - re-export untuk backward compatibility
+// src/config.ts
 export {
   MODELS,
-  MODEL_IDS,
   DEFAULT_MODEL,
   AWS_REGION,
   isValidModelId,
   getModelConfig,
-  calculateCost,
-  type ModelId,
 } from '@/lib/models/config';
+
+export type { ModelId } from '@/types';
