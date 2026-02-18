@@ -1,16 +1,25 @@
-import { ChatMessage } from '@/lib/models/types';
-import { ModelConfig } from '@/types';
+// ============================================================
+// src/lib/bedrock/transformers.ts — Payload builder & response parser
+// Supports: Anthropic (Claude), DeepSeek R1, Meta (Llama 4)
+// ============================================================
+
+import type { ChatMessage } from '@/lib/models/types';
+import type { ModelConfig } from '@/types';
 
 export class PayloadTransformer {
+
+  // ----------------------------------------------------------
+  // ANTHROPIC — Messages API format (Claude Opus & Sonnet)
+  // ----------------------------------------------------------
   static toAnthropic(
     messages: ChatMessage[],
     config: ModelConfig,
     options: any = {}
   ) {
-    const systemMessage = messages.find(m => m.role === 'system');
-    const conversationMessages = messages.filter(m => m.role !== 'system');
-    
-    const anthropicMessages = conversationMessages.map(msg => ({
+    const systemMessage = messages.find((m) => m.role === 'system');
+    const conversationMessages = messages.filter((m) => m.role !== 'system');
+
+    const anthropicMessages = conversationMessages.map((msg) => ({
       role: msg.role as 'user' | 'assistant',
       content: msg.content,
     }));
@@ -26,20 +35,62 @@ export class PayloadTransformer {
       payload.system = systemMessage.content;
     }
 
+    // Extended thinking — hanya untuk Claude Opus 4.6
     if (config.supportsThinking && options.enableThinking) {
       payload.thinking = {
         type: 'enabled',
-        budget_tokens: 2000,
+        budget_tokens: 5000,
       };
+      // Temperature tidak boleh di-set saat thinking enabled
       delete payload.temperature;
     }
 
     return payload;
   }
 
-  static toLlama(messages: ChatMessage[], config: ModelConfig, options: any = {}) {
+  // ----------------------------------------------------------
+  // DEEPSEEK R1 — OpenAI-compatible messages format
+  // ----------------------------------------------------------
+  static toDeepSeek(
+    messages: ChatMessage[],
+    config: ModelConfig,
+    options: any = {}
+  ) {
+    const filteredMessages = messages
+      .filter((m) => m.role !== 'system')
+      .map((msg) => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      }));
+
+    // Prepend system message sebagai user message pertama jika ada
+    const systemMessage = messages.find((m) => m.role === 'system');
+    const finalMessages = systemMessage
+      ? [
+          { role: 'user' as const, content: `[System]: ${systemMessage.content}` },
+          { role: 'assistant' as const, content: 'Understood.' },
+          ...filteredMessages,
+        ]
+      : filteredMessages;
+
+    return {
+      messages: finalMessages,
+      max_tokens: options.maxTokens || config.maxTokens,
+      temperature: options.temperature ?? 0.6,
+      top_p: 0.9,
+    };
+  }
+
+  // ----------------------------------------------------------
+  // META LLAMA 4 — Chat completion prompt format
+  // ----------------------------------------------------------
+  static toLlama(
+    messages: ChatMessage[],
+    config: ModelConfig,
+    options: any = {}
+  ) {
     let prompt = '<|begin_of_text|>';
-    
+
     for (const msg of messages) {
       if (msg.role === 'system') {
         prompt += `<|start_header_id|>system<|end_header_id|>\n${msg.content}<|eot_id|>`;
@@ -49,9 +100,9 @@ export class PayloadTransformer {
         prompt += `<|start_header_id|>assistant<|end_header_id|>\n${msg.content}<|eot_id|>`;
       }
     }
-    
+
     prompt += '<|start_header_id|>assistant<|end_header_id|>\n';
-    
+
     return {
       prompt,
       max_gen_len: options.maxTokens || config.maxTokens,
@@ -60,14 +111,24 @@ export class PayloadTransformer {
     };
   }
 
-  static parseResponse(body: Uint8Array, config: ModelConfig) {
+  // ----------------------------------------------------------
+  // PARSE RESPONSE — Non-streaming
+  // ----------------------------------------------------------
+  static parseResponse(
+    body: Uint8Array,
+    config: ModelConfig
+  ): {
+    content: string;
+    thinking?: string;
+    usage?: { inputTokens: number; outputTokens: number };
+  } {
     const responseText = new TextDecoder().decode(body);
     const response = JSON.parse(responseText);
 
     if (config.provider === 'anthropic') {
       let content = '';
       let thinking = '';
-      
+
       if (response.content && Array.isArray(response.content)) {
         for (const block of response.content) {
           if (block.type === 'thinking') {
@@ -83,21 +144,45 @@ export class PayloadTransformer {
       return {
         content,
         thinking: thinking || undefined,
-        usage: response.usage ? {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-        } : undefined,
-      };
-    } else if (config.provider === 'meta') {
-      return {
-        content: response.generation || response.completion || '',
-        usage: response.usage ? {
-          inputTokens: response.usage.prompt_tokens,
-          outputTokens: response.usage.completion_tokens,
-        } : undefined,
+        usage: response.usage
+          ? {
+              inputTokens: response.usage.input_tokens,
+              outputTokens: response.usage.output_tokens,
+            }
+          : undefined,
       };
     }
-    
+
+    if (config.provider === 'deepseek') {
+      // DeepSeek R1 returns OpenAI-compatible format
+      if (response.choices && response.choices.length > 0) {
+        const choice = response.choices[0];
+        return {
+          content: choice.message?.content || '',
+          thinking: choice.message?.reasoning_content || undefined,
+          usage: response.usage
+            ? {
+                inputTokens: response.usage.prompt_tokens || 0,
+                outputTokens: response.usage.completion_tokens || 0,
+              }
+            : undefined,
+        };
+      }
+      return { content: response.output || response.generation || '' };
+    }
+
+    if (config.provider === 'meta') {
+      return {
+        content: response.generation || response.completion || '',
+        usage: response.usage
+          ? {
+              inputTokens: response.usage.prompt_tokens || 0,
+              outputTokens: response.usage.completion_tokens || 0,
+            }
+          : undefined,
+      };
+    }
+
     throw new Error(`Unknown provider: ${config.provider}`);
   }
 }

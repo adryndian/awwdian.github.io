@@ -89,9 +89,9 @@ export function InputArea({
   }, []);
 
   const modelPlaceholders: Record<string, string> = {
-    'us.anthropic.claude-opus-4-6-v1': 'Tanya Claude Opus 4.6...',
-    'us.anthropic.claude-sonnet-4-0-v1': 'Tanya Claude Sonnet 4.0...',
-    'us.meta.llama4-maverick-17b-instruct-v1': 'Tanya Llama 4 Maverick...',
+    'us.anthropic.claude-opus-4-6-v1:0': 'Tanya Claude Opus 4.6...',
+    'us.anthropic.claude-sonnet-4-0-v1:0': 'Tanya Claude Sonnet 4.0...',
+    'us.meta.llama4-maverick-17b-instruct-v1:0': 'Tanya Llama 4 Maverick...','us.deepseek.r1-v1:0': 'Tanya DeepSeek R1...',
   };
 
   const placeholder = modelPlaceholders[selectedModel] || 'Ketik pesan...';

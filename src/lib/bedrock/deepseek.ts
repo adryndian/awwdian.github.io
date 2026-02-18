@@ -10,8 +10,8 @@ import { getBedrockClient } from "./client";
 // DeepSeek Model Configuration
 // ============================================
 const DEEPSEEK_MODELS = {
-  primary: "deepseek.deepseek-r1-distill-llama-70b",
-  fallback: "deepseek.deepseek-r1-distill-llama-8b",
+  primary: "us.deepseek.r1-v1:0",
+  fallback: "us.deepseek.r1-v1:0",
 } as const;
 
 interface DeepSeekMessage {

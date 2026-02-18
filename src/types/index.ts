@@ -1,32 +1,36 @@
-// src/types/index.ts
+// ============================================================
+// src/types/index.ts — Single source of truth untuk semua types
+// JANGAN import dari @/lib/models/config di sini (circular dependency)
+// ============================================================
 
-// Definisikan ModelId LANGSUNG di sini (tidak import dari config.ts)
-export type ModelId = 
-  | 'us.anthropic.claude-opus-4-6-v1'
-  | 'us.anthropic.claude-sonnet-4-0-v1'
-  | 'us.meta.llama4-maverick-17b-instruct-v1';
+/**
+ * Model IDs — harus match PERSIS dengan MODEL_IDS di lib/models/config.ts
+ * Format: us.<provider>.<model-slug>:<version>
+ */
+export type ModelId =
+  | 'us.anthropic.claude-opus-4-6-v1:0'
+  | 'us.anthropic.claude-sonnet-4-0-v1:0'
+  | 'us.deepseek.r1-v1:0'
+  | 'us.meta.llama4-maverick-17b-instruct-v1:0';
 
-// Definisikan ModelConfig juga di sini (untuk digunakan config.ts)
+export type ModelProvider = 'anthropic' | 'deepseek' | 'meta';
+
 export interface ModelConfig {
   id: ModelId;
   name: string;
-  provider: 'anthropic' | 'meta';
+  provider: ModelProvider;
   maxTokens: number;
   supportsStreaming: boolean;
   supportsThinking?: boolean;
   description: string;
   costLevel: 'high' | 'medium' | 'low';
+  inputPricePer1K: number;
+  outputPricePer1K: number;
 }
 
-// Tidak ada re-export dari '@/lib/models/config' untuk menghindari circular dependency
+export type MessageRole = 'user' | 'assistant' | 'system';
 
-export type ExtractedFile = {
-  name: string;
-  extension: string;
-  content: string;
-};
-
-export type MessageRole = "user" | "assistant" | "system";
+export type AiStatus = 'idle' | 'loading' | 'streaming' | 'error';
 
 export interface Message {
   id: string;
@@ -35,6 +39,7 @@ export interface Message {
   timestamp: Date;
   model?: ModelId;
   cost?: number;
+  thinking?: string;
   files?: FileAttachment[];
 }
 
@@ -62,6 +67,7 @@ export interface ApiResponse {
   inputTokens?: number;
   outputTokens?: number;
   model?: string;
+  thinking?: string;
   duration?: number;
 }
 
@@ -73,3 +79,9 @@ export interface SendMessagePayload {
     content: string;
   }[];
 }
+
+export type ExtractedFile = {
+  name: string;
+  extension: string;
+  content: string;
+};

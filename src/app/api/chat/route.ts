@@ -1,51 +1,59 @@
-/**
- * Main API Route - Entry point untuk chat completion
- * Mendukung: Claude Opus 4.6, Sonnet 4.0, Llama 4 Maverick
- */
+// ============================================================
+// src/app/api/chat/route.ts — Main API entry point
+// ============================================================
+
+// KRITIS: JANGAN gunakan runtime = 'edge'!
+// AWS SDK (@aws-sdk/client-bedrock-runtime) membutuhkan Node.js runtime.
+// Edge runtime tidak mendukung Node.js native modules.
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { BedrockInvoker } from '@/lib/bedrock/invoker';
-import { ChatRequest } from '@/lib/models/types';
-// FIX: Import dari config.ts, bukan dari types
-import { DEFAULT_MODEL, isValidModelId } from '@/lib/models/config';
-
-export const runtime = 'edge';
-export const maxDuration = 60;
+import type { ChatRequest } from '@/lib/models/types';
+import { DEFAULT_MODEL, isValidModelId, calculateCost } from '@/lib/models/config';
+import type { ModelId } from '@/types';
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+
   try {
     const body = await req.json();
 
-    const chatRequest: ChatRequest = {
-      messages: body.messages || [],
-      modelId: body.modelId || DEFAULT_MODEL,
-      temperature: body.temperature,
-      maxTokens: body.maxTokens,
-      enableThinking: body.enableThinking,
-      stream: body.stream ?? false,
-    };
-
-    if (!isValidModelId(chatRequest.modelId!)) {
+    // Validasi model ID
+    const modelId = body.modelId || DEFAULT_MODEL;
+    if (!isValidModelId(modelId)) {
       return NextResponse.json(
         {
-          error: 'Invalid model ID',
+          error: `Invalid model ID: "${modelId}"`,
           availableModels: [
-            'us.anthropic.claude-opus-4-6-v1',
-            'us.anthropic.claude-sonnet-4-0-v1',
-            'us.meta.llama4-maverick-17b-instruct-v1'
-          ]
+            'us.anthropic.claude-opus-4-6-v1:0',
+            'us.anthropic.claude-sonnet-4-0-v1:0',
+            'us.deepseek.r1-v1:0',
+            'us.meta.llama4-maverick-17b-instruct-v1:0',
+          ],
         },
         { status: 400 }
       );
     }
 
+    const chatRequest: ChatRequest = {
+      messages: body.messages || [],
+      modelId,
+      temperature: body.temperature,
+      maxTokens: body.maxTokens,
+      enableThinking: body.enableThinking ?? false,
+      stream: body.stream ?? false,
+    };
+
     if (!chatRequest.messages.length) {
       return NextResponse.json(
-        { error: 'Messages array cannot be empty' },
+        { error: 'messages array cannot be empty' },
         { status: 400 }
       );
     }
 
+    // Streaming response
     if (chatRequest.stream) {
       const stream = await createStream(chatRequest);
       return new Response(stream, {
@@ -57,15 +65,37 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Non-streaming response
     const response = await BedrockInvoker.invoke(chatRequest);
-    return NextResponse.json(response);
+    const duration = Date.now() - startTime;
+
+    // Hitung cost jika ada usage data
+    let cost: number | undefined;
+    if (response.usage) {
+      cost = calculateCost(
+        modelId as ModelId,
+        response.usage.inputTokens,
+        response.usage.outputTokens
+      );
+    }
+
+    return NextResponse.json({
+      content: response.content,
+      thinking: response.thinking,
+      model: response.model,
+      usage: response.usage,
+      cost,
+      duration,
+    });
 
   } catch (error: any) {
+    const duration = Date.now() - startTime;
     console.error('[API Chat Error]:', error);
 
     return NextResponse.json(
       {
         error: error.message || 'Internal server error',
+        duration,
         timestamp: new Date().toISOString(),
       },
       { status: 500 }
@@ -88,7 +118,6 @@ async function createStream(request: ChatRequest): Promise<ReadableStream> {
 
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
-
       } catch (error) {
         const errorData = `data: ${JSON.stringify({ error: (error as Error).message })}\n\n`;
         controller.enqueue(encoder.encode(errorData));

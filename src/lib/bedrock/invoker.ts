@@ -1,30 +1,27 @@
-/**
- * Unified Invoker - Single interface untuk invoke semua model
- * Handle perbedaan logic tanpa bentrok
- */
+// ============================================================
+// src/lib/bedrock/invoker.ts — Unified invoker untuk semua model
+// ============================================================
 
-import { 
-  InvokeModelCommand, 
+import {
+  InvokeModelCommand,
   InvokeModelWithResponseStreamCommand,
-  ResponseStream
 } from '@aws-sdk/client-bedrock-runtime';
 import { getBedrockClient } from './client';
 import { PayloadTransformer } from './transformers';
-import { 
-  ChatRequest, 
-  ChatResponse, 
-  ChatMessage 
-} from '@/lib/models/types';
-import { ModelConfig, getModelConfig } from '@/types';
+import type { ChatRequest, ChatResponse, ChatMessage } from '@/lib/models/types';
+import type { ModelConfig } from '@/types';
+// FIX: Import dari config, bukan dari @/types
+import { getModelConfig } from '@/lib/models/config';
 
 export class BedrockInvoker {
-  /**
-   * Invoke model (non-streaming)
-   */
+
+  // ----------------------------------------------------------
+  // Non-streaming invoke
+  // ----------------------------------------------------------
   static async invoke(request: ChatRequest): Promise<ChatResponse> {
     const config = getModelConfig(request.modelId || '');
     const client = getBedrockClient();
-    
+
     const payload = this.buildPayload(request.messages, config, {
       maxTokens: request.maxTokens,
       temperature: request.temperature,
@@ -40,8 +37,11 @@ export class BedrockInvoker {
 
     try {
       const response = await client.send(command);
-      const parsed = PayloadTransformer.parseResponse(response.body as Uint8Array, config);
-      
+      const parsed = PayloadTransformer.parseResponse(
+        response.body as Uint8Array,
+        config
+      );
+
       return {
         content: parsed.content,
         thinking: parsed.thinking,
@@ -54,14 +54,15 @@ export class BedrockInvoker {
     }
   }
 
-  /**
-   * Invoke dengan streaming
-   * Returns AsyncIterator untuk handle stream beda provider
-   */
-  static async* invokeStream(request: ChatRequest): AsyncGenerator<string, ChatResponse, unknown> {
+  // ----------------------------------------------------------
+  // Streaming invoke — yields partial chunks
+  // ----------------------------------------------------------
+  static async *invokeStream(
+    request: ChatRequest
+  ): AsyncGenerator<string, ChatResponse, unknown> {
     const config = getModelConfig(request.modelId || '');
     const client = getBedrockClient();
-    
+
     if (!config.supportsStreaming) {
       throw new Error(`Model ${config.name} does not support streaming`);
     }
@@ -86,13 +87,13 @@ export class BedrockInvoker {
     if (response.body) {
       for await (const chunk of response.body) {
         const parsed = this.parseStreamChunk(chunk, config);
-        
+
         if (parsed.thinking) {
           thinking += parsed.thinking;
         }
         if (parsed.content) {
           fullContent += parsed.content;
-          yield parsed.content; // Yield partial content untuk streaming ke client
+          yield parsed.content;
         }
       }
     }
@@ -104,80 +105,114 @@ export class BedrockInvoker {
     } as ChatResponse;
   }
 
-  /**
-   * Build payload sesuai provider
-   */
+  // ----------------------------------------------------------
+  // Build payload by provider
+  // ----------------------------------------------------------
   private static buildPayload(
     messages: ChatMessage[],
     config: ModelConfig,
     options: any
   ): object {
-    if (config.provider === 'anthropic') {
-      return PayloadTransformer.toAnthropic(messages, config, options);
-    } else if (config.provider === 'meta') {
-      return PayloadTransformer.toLlama(messages, config, options);
+    switch (config.provider) {
+      case 'anthropic':
+        return PayloadTransformer.toAnthropic(messages, config, options);
+      case 'deepseek':
+        return PayloadTransformer.toDeepSeek(messages, config, options);
+      case 'meta':
+        return PayloadTransformer.toLlama(messages, config, options);
+      default:
+        throw new Error(`Unsupported provider: ${config.provider}`);
     }
-    throw new Error(`Unsupported provider: ${config.provider}`);
   }
 
-  /**
-   * Parse stream chunk beda provider
-   */
-  private static parseStreamChunk(chunk: any, config: ModelConfig): {
-    content?: string;
-    thinking?: string;
-  } {
+  // ----------------------------------------------------------
+  // Parse streaming chunk by provider
+  // ----------------------------------------------------------
+  private static parseStreamChunk(
+    chunk: any,
+    config: ModelConfig
+  ): { content?: string; thinking?: string } {
     try {
-      if (config.provider === 'anthropic') {
-        return this.parseAnthropicChunk(chunk);
-      } else if (config.provider === 'meta') {
-        return this.parseLlamaChunk(chunk);
+      const bytes = chunk.chunk?.bytes;
+      if (!bytes) return {};
+
+      const json = JSON.parse(new TextDecoder().decode(bytes));
+
+      switch (config.provider) {
+        case 'anthropic':
+          return this.parseAnthropicChunk(json);
+        case 'deepseek':
+          return this.parseDeepSeekChunk(json);
+        case 'meta':
+          return this.parseLlamaChunk(json);
+        default:
+          return {};
       }
-    } catch (e) {
+    } catch {
       return {};
     }
-    return {};
   }
 
-  private static parseAnthropicChunk(chunk: any): { content?: string; thinking?: string } {
-    // Anthropic stream format: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "..."}}
-    const json = JSON.parse(new TextDecoder().decode(chunk.chunk?.bytes));
-    
+  private static parseAnthropicChunk(
+    json: any
+  ): { content?: string; thinking?: string } {
     if (json.type === 'content_block_delta') {
       if (json.delta?.type === 'text_delta') {
         return { content: json.delta.text };
-      } else if (json.delta?.type === 'thinking_delta') {
+      }
+      if (json.delta?.type === 'thinking_delta') {
         return { thinking: json.delta.thinking };
       }
     }
     return {};
   }
 
-  private static parseLlamaChunk(chunk: any): { content?: string } {
-    // Llama stream format: {"generation": "..."}
-    const json = JSON.parse(new TextDecoder().decode(chunk.chunk?.bytes));
+  private static parseDeepSeekChunk(
+    json: any
+  ): { content?: string; thinking?: string } {
+    // DeepSeek R1 streaming: OpenAI-compatible SSE chunks
+    if (json.choices && json.choices.length > 0) {
+      const delta = json.choices[0].delta;
+      return {
+        content: delta?.content || undefined,
+        thinking: delta?.reasoning_content || undefined,
+      };
+    }
+    return {};
+  }
+
+  private static parseLlamaChunk(json: any): { content?: string } {
     return { content: json.generation || '' };
   }
 
-  /**
-   * Error handler dengan konteks model
-   */
+  // ----------------------------------------------------------
+  // Error enhancer — pesan error yang lebih deskriptif
+  // ----------------------------------------------------------
   private static enhanceError(error: any, config: ModelConfig): Error {
     const message = error.message || '';
-    
-    if (message.includes('validationException')) {
-      return new Error(`Invalid request format for ${config.name}. Pastikan payload sesuai format ${config.provider}.`);
+    const name = error.name || '';
+
+    if (name === 'ValidationException' || message.includes('validationException')) {
+      return new Error(
+        `[${config.name}] Format payload tidak valid. Pastikan model sudah diaktifkan di Bedrock Console.`
+      );
     }
-    if (message.includes('accessDeniedException')) {
-      return new Error(`Access denied untuk ${config.name}. Cek IAM permissions untuk inference profile.`);
+    if (name === 'AccessDeniedException' || message.includes('accessDeniedException')) {
+      return new Error(
+        `[${config.name}] Access denied. Cek IAM permission: bedrock:InvokeModel dan bedrock:InvokeModelWithResponseStream.`
+      );
     }
-    if (message.includes('throttlingException')) {
-      return new Error(`Rate limit tercapai untuk ${config.name}. Coba gunakan model lain atau tunggu sebentar.`);
+    if (name === 'ThrottlingException' || message.includes('throttling')) {
+      return new Error(
+        `[${config.name}] Rate limit tercapai. Coba lagi atau gunakan model lain.`
+      );
     }
-    if (message.includes('model not available')) {
-      return new Error(`Model ${config.name} belum diaktifkan di AWS Console > Bedrock > Model Access.`);
+    if (message.includes('model not available') || message.includes('ResourceNotFoundException')) {
+      return new Error(
+        `[${config.name}] Model belum diaktifkan. Aktifkan di: AWS Console → Bedrock → Model Access → Enable "${config.id}".`
+      );
     }
-    
+
     return error;
   }
 }

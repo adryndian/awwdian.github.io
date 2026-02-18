@@ -30,7 +30,7 @@ export default function ChatPage() {
         />
         
         {/* Toggle Thinking untuk Opus 4.6 */}
-        {currentModel === 'us.anthropic.claude-opus-4-6-v1' && (
+        {currentModel === 'us.anthropic.claude-opus-4-6-v1:0' && (
           <label className="flex items-center gap-2 mt-2 text-sm">
             <input 
               type="checkbox" 
