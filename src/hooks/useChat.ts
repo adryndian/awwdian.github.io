@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { MODELS, DEFAULT_MODEL, type ModelId, isValidModelId } from '@/lib/models/config';
+import { MODELS, DEFAULT_MODEL, isValidModelId } from '@/lib/models/config';
+import type { ModelId } from '@/types';
 
 interface Message {
   id: string;
@@ -87,9 +88,10 @@ export function useChat(options: UseChatOptions = {}) {
     setError(null);
   }, []);
 
+  // changeModel: validasi sebelum set
   const changeModel = useCallback((newModelId: string) => {
     if (isValidModelId(newModelId)) {
-      setCurrentModel(newModelId);
+      setCurrentModel(newModelId as ModelId);
     } else {
       console.error('[useChat] Invalid model ID:', newModelId);
     }
@@ -103,6 +105,8 @@ export function useChat(options: UseChatOptions = {}) {
     models: Object.values(MODELS),
     sendMessage,
     clearChat,
+    // setCurrentModel: alias langsung ke changeModel agar kompatibel dengan page.tsx
+    setCurrentModel: changeModel,
     changeModel,
   };
 }
