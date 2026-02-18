@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { MODELS, DEFAULT_MODEL } from '@/types';
-import type { ModelId } from '@/types';
+// Import dari config.ts langsung
+import { MODELS, DEFAULT_MODEL, type ModelId, isValidModelId } from '@/lib/models/config';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -19,7 +19,7 @@ export function useChat(options: UseChatOptions = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
-  // PERBAIKAN: Explicit generic type <ModelId> pada useState
+  // Fix: Explicit type <ModelId> pada useState
   const [currentModel, setCurrentModel] = useState<ModelId>(
     options.initialModel || DEFAULT_MODEL
   );
@@ -77,11 +77,22 @@ export function useChat(options: UseChatOptions = {}) {
     setError(null);
   }, []);
 
+  // Handler untuk ganti model dengan validasi
+  const changeModel = useCallback((newModelId: string) => {
+    if (isValidModelId(newModelId)) {
+      setCurrentModel(newModelId);
+      return true;
+    } else {
+      console.error(`Invalid model ID: ${newModelId}`);
+      return false;
+    }
+  }, []);
+
   return {
     messages,
     isLoading,
     currentModel,
-    setCurrentModel,
+    setCurrentModel: changeModel, // Gunakan wrapper yang type-safe
     error,
     sendMessage,
     clearChat,

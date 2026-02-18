@@ -3,22 +3,35 @@
  * Inference Profile IDs wajib untuk on-demand throughput
  */
 
-import type { ModelId, ModelConfig } from '@/types';
-
-import type { ModelId } from '@/types';
+// Tipe ModelId didefinisikan LANGSUNG di sini (tidak import dari @/types)
+export type ModelId = 
+  | 'us.anthropic.claude-opus-4-6-v1'
+  | 'us.anthropic.claude-sonnet-4-0-v1'
+  | 'us.meta.llama4-maverick-17b-instruct-v1';
 
 export const AWS_REGION = process.env.AWS_REGION || 'us-west-2';
 
 export const MODEL_IDS = {
   // Claude Opus 4.6 - Most capable, untuk coding kompleks
   CLAUDE_OPUS_4_6: 'us.anthropic.claude-opus-4-6-v1',
-  
+
   // Claude Sonnet 4.0 - Balance performance & speed
   CLAUDE_SONNET_4_0: 'us.anthropic.claude-sonnet-4-0-v1',
-  
+
   // Llama 4 Maverick - Open source, cost-effective
   LLAMA_4_MAVERICK: 'us.meta.llama4-maverick-17b-instruct-v1',
 } as const;
+
+export interface ModelConfig {
+  id: ModelId;
+  name: string;
+  provider: 'anthropic' | 'meta';
+  maxTokens: number;
+  supportsStreaming: boolean;
+  supportsThinking?: boolean;
+  description: string;
+  costLevel: 'high' | 'medium' | 'low';
+}
 
 export const MODELS: Record<ModelId, ModelConfig> = {
   [MODEL_IDS.CLAUDE_OPUS_4_6]: {
@@ -53,8 +66,8 @@ export const MODELS: Record<ModelId, ModelConfig> = {
   },
 };
 
-// Default model fallback
-export const DEFAULT_MODEL = MODEL_IDS.CLAUDE_SONNET_4_0;
+// DEFAULT_MODEL dengan explicit type annotation (ini kunci fix-nya)
+export const DEFAULT_MODEL: ModelId = MODEL_IDS.CLAUDE_SONNET_4_0;
 
 // Validasi model ID
 export function isValidModelId(id: string): id is ModelId {
