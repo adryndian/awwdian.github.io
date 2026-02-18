@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { type ModelId, DEFAULT_MODEL, isValidModelId, MODELS } from '@/lib/models/config';
+import type { ModelId } from '@/types';
+import { DEFAULT_MODEL, isValidModelId, MODELS } from '@/lib/models/config';
 import type { Message, AiStatus } from '@/types';
 
 interface ChatContainerProps {
@@ -9,7 +10,6 @@ interface ChatContainerProps {
   initialModel?: ModelId;
 }
 
-// Named export DAN default export supaya semua import style work
 export function ChatContainer({ userId, initialModel }: ChatContainerProps = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,8 +57,7 @@ export function ChatContainer({ userId, initialModel }: ChatContainerProps = {})
               content: m.content,
             })),
             modelId: selectedModel,
-            enableThinking:
-              selectedModel === 'us.anthropic.claude-opus-4-6-v1:0',
+            enableThinking: selectedModel === 'us.anthropic.claude-opus-4-6-v1:0',
             stream: false,
           }),
         });
@@ -66,7 +65,7 @@ export function ChatContainer({ userId, initialModel }: ChatContainerProps = {})
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || `Server error (${response.status})`);
+          throw new Error(data.error || 'Server error (' + response.status + ')');
         }
 
         if (!data.content) {
@@ -128,14 +127,11 @@ export function ChatContainer({ userId, initialModel }: ChatContainerProps = {})
           <span className="font-semibold text-white">BeckRock AI</span>
         </div>
 
-        {/* Model Selector */}
         <select
           value={selectedModel}
           onChange={(e) => handleModelChange(e.target.value)}
           disabled={isLoading}
-          className="px-3 py-1.5 text-sm rounded-lg bg-white/5 border border-white/10 text-white
-            hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-            focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+          className="px-3 py-1.5 text-sm rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-orange-500/50"
         >
           {allModels.map((model) => (
             <option key={model.id} value={model.id} className="bg-gray-900">
@@ -150,48 +146,36 @@ export function ChatContainer({ userId, initialModel }: ChatContainerProps = {})
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-purple-600 flex items-center justify-center text-2xl">
-              🤖
+              AI
             </div>
             <div>
               <p className="text-white/70 text-lg font-medium">Halo! Pilih model dan mulai chat</p>
-              <p className="text-white/40 text-sm mt-1">
-                {MODELS[selectedModel]?.description}
-              </p>
+              <p className="text-white/40 text-sm mt-1">{MODELS[selectedModel]?.description}</p>
             </div>
             <div className="grid grid-cols-2 gap-2 max-w-md text-xs text-white/50">
               <div className="px-3 py-2 rounded-lg bg-white/5 border border-white/10">
-                🧠 <strong className="text-orange-400">Claude Opus 4.6</strong><br />Extended thinking
+                <strong className="text-orange-400">Claude Opus 4.6</strong><br />Extended thinking
               </div>
               <div className="px-3 py-2 rounded-lg bg-white/5 border border-white/10">
-                ⚡ <strong className="text-blue-400">Claude Sonnet 4.0</strong><br />Fast & balanced
+                <strong className="text-blue-400">Claude Sonnet 4.0</strong><br />Fast and balanced
               </div>
               <div className="px-3 py-2 rounded-lg bg-white/5 border border-white/10">
-                🔍 <strong className="text-green-400">DeepSeek R1</strong><br />Reasoning chain
+                <strong className="text-green-400">DeepSeek R1</strong><br />Reasoning chain
               </div>
               <div className="px-3 py-2 rounded-lg bg-white/5 border border-white/10">
-                🦙 <strong className="text-yellow-400">Llama 4 Maverick</strong><br />Open source
+                <strong className="text-yellow-400">Llama 4 Maverick</strong><br />Open source
               </div>
             </div>
           </div>
         )}
 
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                msg.role === 'user'
-                  ? 'bg-orange-500/20 border border-orange-500/30 text-white'
-                  : 'bg-white/5 border border-white/10 text-white/90'
-              }`}
-            >
-              {/* Thinking block */}
+          <div key={msg.id} className={'flex ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+            <div className={'max-w-[80%] rounded-2xl px-4 py-3 ' + (msg.role === 'user' ? 'bg-orange-500/20 border border-orange-500/30 text-white' : 'bg-white/5 border border-white/10 text-white/90')}>
               {msg.thinking && (
                 <details className="mb-2">
                   <summary className="text-xs text-purple-400 cursor-pointer hover:text-purple-300">
-                    💭 View thinking process
+                    View thinking process
                   </summary>
                   <div className="mt-2 text-xs text-white/50 bg-purple-500/5 rounded-lg p-2 border border-purple-500/20 font-mono whitespace-pre-wrap">
                     {msg.thinking}
@@ -207,12 +191,12 @@ export function ChatContainer({ userId, initialModel }: ChatContainerProps = {})
                 </span>
                 {msg.model && (
                   <span className="text-[10px] text-white/30">
-                    · {MODELS[msg.model]?.name || msg.model}
+                    {' '} {MODELS[msg.model as ModelId]?.name || msg.model}
                   </span>
                 )}
                 {msg.cost && (
                   <span className="text-[10px] text-green-400/60">
-                    · ${msg.cost.toFixed(4)}
+                    {' '} ${msg.cost.toFixed(4)}
                   </span>
                 )}
               </div>
@@ -220,15 +204,14 @@ export function ChatContainer({ userId, initialModel }: ChatContainerProps = {})
           </div>
         ))}
 
-        {/* Loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
               <div className="flex items-center gap-2 text-sm text-white/50">
                 <div className="flex gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce [animation-delay:300ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
                 {MODELS[selectedModel]?.name} sedang berpikir...
               </div>
@@ -236,11 +219,10 @@ export function ChatContainer({ userId, initialModel }: ChatContainerProps = {})
           </div>
         )}
 
-        {/* Error display */}
         {error && (
           <div className="flex justify-center">
             <div className="max-w-lg px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center">
-              ⚠️ {error}
+              {error}
             </div>
           </div>
         )}
@@ -266,26 +248,20 @@ export function ChatContainer({ userId, initialModel }: ChatContainerProps = {})
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isLoading}
-            placeholder={`Chat dengan ${MODELS[selectedModel]?.name || 'AI'}... (Enter kirim, Shift+Enter baris baru)`}
+            placeholder={'Chat dengan ' + (MODELS[selectedModel]?.name || 'AI') + '... (Enter kirim, Shift+Enter baris baru)'}
             rows={1}
-            className="flex-1 px-4 py-3 text-sm rounded-xl bg-white/5 border border-white/10 text-white
-              placeholder:text-white/30 resize-none overflow-hidden
-              focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/30
-              disabled:opacity-50 disabled:cursor-not-allowed
-              max-h-40 transition-colors"
+            className="flex-1 px-4 py-3 text-sm rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 resize-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/30 disabled:opacity-50 disabled:cursor-not-allowed max-h-40 transition-colors"
             style={{ minHeight: '48px' }}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = 'auto';
-              target.style.height = `${Math.min(target.scrollHeight, 160)}px`;
+              target.style.height = Math.min(target.scrollHeight, 160) + 'px';
             }}
           />
           <button
             onClick={() => handleSendMessage(inputValue)}
             disabled={isLoading || !inputValue.trim()}
-            className="px-4 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm
-              disabled:opacity-40 disabled:cursor-not-allowed transition-colors
-              focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+            className="px-4 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500/50"
           >
             {isLoading ? (
               <span className="flex items-center gap-2">
@@ -293,7 +269,7 @@ export function ChatContainer({ userId, initialModel }: ChatContainerProps = {})
                 ...
               </span>
             ) : (
-              'Send ↑'
+              'Send'
             )}
           </button>
         </div>
