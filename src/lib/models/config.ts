@@ -1,4 +1,3 @@
-// src/lib/models/config.ts
 import type { ModelId, ModelConfig } from '@/types';
 
 export { type ModelId } from '@/types';
@@ -20,7 +19,7 @@ export const MODELS: Record<ModelId, ModelConfig> = {
     maxTokens: 8192,
     supportsStreaming: true,
     supportsThinking: true,
-    description: 'Maximum reasoning & coding - extended thinking',
+    description: 'Maximum reasoning - extended thinking',
     costLevel: 'high',
     inputPricePer1K: 15.0,
     outputPricePer1K: 75.0,
@@ -32,7 +31,7 @@ export const MODELS: Record<ModelId, ModelConfig> = {
     maxTokens: 8192,
     supportsStreaming: true,
     supportsThinking: false,
-    description: 'Balanced performance - fast & smart',
+    description: 'Balanced performance - fast and smart',
     costLevel: 'medium',
     inputPricePer1K: 3.0,
     outputPricePer1K: 15.0,
@@ -56,7 +55,7 @@ export const MODELS: Record<ModelId, ModelConfig> = {
     maxTokens: 8192,
     supportsStreaming: true,
     supportsThinking: false,
-    description: 'Meta open source - efficient & fast',
+    description: 'Meta open source - efficient and fast',
     costLevel: 'low',
     inputPricePer1K: 0.19,
     outputPricePer1K: 0.19,
