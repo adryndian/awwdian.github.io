@@ -18,7 +18,12 @@ interface UseChatOptions {
 export function useChat(options: UseChatOptions = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentModel, setCurrentModel] = useState<ModelId>(options.initialModel || DEFAULT_MODEL);
+  
+  // PERBAIKAN: Explicit generic type <ModelId> pada useState
+  const [currentModel, setCurrentModel] = useState<ModelId>(
+    options.initialModel || DEFAULT_MODEL
+  );
+  
   const [error, setError] = useState<string | null>(null);
 
   const sendMessage = useCallback(async (content: string, enableThinking = false) => {
@@ -49,7 +54,7 @@ export function useChat(options: UseChatOptions = {}) {
       }
 
       const data = await response.json();
-      
+
       const assistantMessage: Message = {
         role: 'assistant',
         content: data.content,
@@ -58,7 +63,7 @@ export function useChat(options: UseChatOptions = {}) {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-      
+
     } catch (err: any) {
       setError(err.message);
       console.error('Chat error:', err);

@@ -5,6 +5,8 @@
 
 import type { ModelId, ModelConfig } from '@/types';
 
+import type { ModelId } from '@/types';
+
 export const AWS_REGION = process.env.AWS_REGION || 'us-west-2';
 
 export const MODEL_IDS = {
