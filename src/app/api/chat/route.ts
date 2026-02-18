@@ -6,16 +6,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BedrockInvoker } from '@/lib/bedrock/invoker';
 import { ChatRequest } from '@/lib/models/types';
-import { DEFAULT_MODEL, isValidModelId } from '@/types';
+// FIX: Import dari config.ts, bukan dari types
+import { DEFAULT_MODEL, isValidModelId } from '@/lib/models/config';
 
-export const runtime = 'edge'; // Optional: gunakan edge runtime untuk latency lebih baik
-export const maxDuration = 60; // Timeout 60 detik untuk Opus yang lambat
+export const runtime = 'edge';
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    
-    // Validasi request
+
     const chatRequest: ChatRequest = {
       messages: body.messages || [],
       modelId: body.modelId || DEFAULT_MODEL,
@@ -25,10 +25,9 @@ export async function POST(req: NextRequest) {
       stream: body.stream ?? false,
     };
 
-    // Validasi model ID
     if (!isValidModelId(chatRequest.modelId!)) {
       return NextResponse.json(
-        { 
+        {
           error: 'Invalid model ID',
           availableModels: [
             'us.anthropic.claude-opus-4-6-v1',
@@ -40,7 +39,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validasi messages
     if (!chatRequest.messages.length) {
       return NextResponse.json(
         { error: 'Messages array cannot be empty' },
@@ -48,7 +46,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Handle Streaming
     if (chatRequest.stream) {
       const stream = await createStream(chatRequest);
       return new Response(stream, {
@@ -60,15 +57,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Handle Non-streaming
     const response = await BedrockInvoker.invoke(chatRequest);
     return NextResponse.json(response);
 
   } catch (error: any) {
     console.error('[API Chat Error]:', error);
-    
+
     return NextResponse.json(
-      { 
+      {
         error: error.message || 'Internal server error',
         timestamp: new Date().toISOString(),
       },
@@ -77,27 +73,22 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/**
- * Create SSE Stream untuk streaming response
- */
 async function createStream(request: ChatRequest): Promise<ReadableStream> {
   const encoder = new TextEncoder();
-  
+
   return new ReadableStream({
     async start(controller) {
       try {
         const generator = BedrockInvoker.invokeStream(request);
-        
+
         for await (const chunk of generator) {
-          // Format SSE (Server-Sent Events)
           const data = `data: ${JSON.stringify({ content: chunk })}\n\n`;
           controller.enqueue(encoder.encode(data));
         }
-        
-        // Signal end of stream
+
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
-        
+
       } catch (error) {
         const errorData = `data: ${JSON.stringify({ error: (error as Error).message })}\n\n`;
         controller.enqueue(encoder.encode(errorData));
