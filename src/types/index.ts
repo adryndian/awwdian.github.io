@@ -1,25 +1,22 @@
 // src/types/index.ts
-export type ModelId =
-  | 'us.anthropic.claude-opus-4-6-v1:0'
-  | 'us.anthropic.claude-sonnet-4-0-v1:0'
-  | 'us.deepseek.r1-v1:0'
-  | 'us.meta.llama4-maverick-17b-instruct-v1:0';
 
-export type ModelProvider = 'anthropic' | 'deepseek' | 'meta';
+// ============================================
+// Import canonical types from models config
+// ============================================
+import type {
+  ModelId as ConfigModelId,
+  ModelConfig as ConfigModelConfig,
+  Provider,
+} from '@/lib/models/config';
 
-export interface ModelConfig {
-  id: ModelId;
-  name: string;
-  provider: ModelProvider;
-  maxTokens: number;
-  supportsStreaming: boolean;
-  supportsThinking?: boolean;
-  description: string;
-  costLevel: 'high' | 'medium' | 'low';
-  inputPricePer1K: number;
-  outputPricePer1K: number;
-}
+// Re-export canonical ModelId (single source of truth)
+export type ModelId = ConfigModelId;
+export type ModelProvider = Provider;
+export type { ConfigModelConfig as ModelConfigType };
 
+// ============================================
+// Message Types
+// ============================================
 export type MessageRole = 'user' | 'assistant' | 'system';
 
 export type AiStatus = 'idle' | 'loading' | 'streaming' | 'error';
@@ -29,7 +26,8 @@ export interface Message {
   role: MessageRole;
   content: string;
   timestamp: Date;
-  model?: ModelId;
+  model?: string;
+  modelName?: string;
   cost?: number;
   thinking?: string;
   files?: FileAttachment[];
@@ -43,6 +41,9 @@ export interface FileAttachment {
   content?: string;
 }
 
+// ============================================
+// Chat Session Types
+// ============================================
 export interface ChatSession {
   id: string;
   title: string;
@@ -52,24 +53,32 @@ export interface ChatSession {
   updatedAt: Date;
 }
 
+// ============================================
+// API Types
+// ============================================
 export interface ApiResponse {
   content?: string;
+  message?: string;
   error?: string;
   cost?: number;
   inputTokens?: number;
   outputTokens?: number;
   model?: string;
+  modelName?: string;
   thinking?: string;
   duration?: number;
+  provider?: string;
 }
 
 export interface SendMessagePayload {
-  model: ModelId;
   message: string;
+  modelId: string;
   history: {
     role: MessageRole;
     content: string;
   }[];
+  temperature?: number;
+  maxTokens?: number;
 }
 
 export type ExtractedFile = {
