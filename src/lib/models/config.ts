@@ -1,55 +1,76 @@
 // src/lib/models/config.ts
 
-// ✅ AWS Region Configuration
-export const AWS_REGION: string = process.env.AWS_REGION || 'us-east-1';
+// ============================================
+// AWS Region Configuration
+// ============================================
+export const AWS_REGION: string = process.env.AWS_REGION || 'us-west-2';
 
-// ✅ Model Definitions
+// ============================================
+// AI Model Definitions (AWS Bedrock - Latest)
+// ============================================
 export const MODELS = {
-  'anthropic.claude-3-sonnet-20240229-v1:0': {
-    id: 'anthropic.claude-3-sonnet-20240229-v1:0',
-    name: 'Claude 3 Sonnet',
-    provider: 'Anthropic',
-    description: 'Balanced performance and speed',
-    maxTokens: 4096,
+  // -----------------------------------------------
+  // Anthropic - Claude Opus 4.6 (Flagship Model)
+  // -----------------------------------------------
+  'anthropic.claude-opus-4-6-20250514-v1:0': {
+    id: 'anthropic.claude-opus-4-6-20250514-v1:0',
+    name: 'Claude Opus 4.6',
+    provider: 'Anthropic' as const,
+    description:
+      'Most powerful Claude model — superior reasoning, coding, and complex analysis',
+    maxTokens: 16384,
+    inputTokenLimit: 200000,
+    supportsStreaming: true,
+    supportsVision: true,
   },
-  'anthropic.claude-3-haiku-20240307-v1:0': {
-    id: 'anthropic.claude-3-haiku-20240307-v1:0',
-    name: 'Claude 3 Haiku',
-    provider: 'Anthropic',
-    description: 'Fast and compact',
-    maxTokens: 4096,
+
+  // -----------------------------------------------
+  // Anthropic - Claude Sonnet 4.0 (Balanced Model)
+  // -----------------------------------------------
+  'anthropic.claude-sonnet-4-20250514-v1:0': {
+    id: 'anthropic.claude-sonnet-4-20250514-v1:0',
+    name: 'Claude Sonnet 4.0',
+    provider: 'Anthropic' as const,
+    description:
+      'Balanced performance — fast, intelligent, and cost-efficient',
+    maxTokens: 8192,
+    inputTokenLimit: 200000,
+    supportsStreaming: true,
+    supportsVision: true,
   },
-  'anthropic.claude-3-5-sonnet-20240620-v1:0': {
-    id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-    name: 'Claude 3.5 Sonnet',
-    provider: 'Anthropic',
-    description: 'Most intelligent Claude model',
-    maxTokens: 4096,
-  },
-  'amazon.titan-text-express-v1': {
-    id: 'amazon.titan-text-express-v1',
-    name: 'Amazon Titan Text Express',
-    provider: 'Amazon',
-    description: 'Amazon general purpose model',
-    maxTokens: 4096,
-  },
-  'meta.llama3-8b-instruct-v1:0': {
-    id: 'meta.llama3-8b-instruct-v1:0',
-    name: 'Llama 3 8B Instruct',
-    provider: 'Meta',
-    description: 'Open source model by Meta',
-    maxTokens: 2048,
+
+  // -----------------------------------------------
+  // Meta - Llama 4 Maverick (Open Source Powerhouse)
+  // -----------------------------------------------
+  'meta.llama4-maverick-17b-128e-instruct-v1:0': {
+    id: 'meta.llama4-maverick-17b-128e-instruct-v1:0',
+    name: 'Llama 4 Maverick',
+    provider: 'Meta' as const,
+    description:
+      'Latest open-source model by Meta — 17B params with 128 experts MoE architecture',
+    maxTokens: 8192,
+    inputTokenLimit: 131072,
+    supportsStreaming: true,
+    supportsVision: false,
   },
 } as const;
 
-// ✅ Type Definitions
+// ============================================
+// Type Definitions
+// ============================================
 export type ModelId = keyof typeof MODELS;
 export type ModelConfig = (typeof MODELS)[ModelId];
+export type Provider = ModelConfig['provider'];
 
-// ✅ Default Model
-export const DEFAULT_MODEL: ModelId = 'anthropic.claude-3-sonnet-20240229-v1:0';
+// ============================================
+// Default Model
+// ============================================
+export const DEFAULT_MODEL: ModelId =
+  'anthropic.claude-sonnet-4-20250514-v1:0';
 
-// ✅ Helper Functions
+// ============================================
+// Helper Functions
+// ============================================
 export function isValidModelId(modelId: string): modelId is ModelId {
   return modelId in MODELS;
 }
@@ -63,4 +84,8 @@ export function getModelConfig(modelId: string): ModelConfig {
 
 export function getAllModels(): ModelConfig[] {
   return Object.values(MODELS);
+}
+
+export function getModelsByProvider(provider: Provider): ModelConfig[] {
+  return Object.values(MODELS).filter((m) => m.provider === provider);
 }
