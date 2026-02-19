@@ -1,109 +1,120 @@
 // src/app/api/chat/route.ts
-// PENTING: runtime nodejs wajib - AWS SDK tidak kompatibel dengan edge runtime
-export const runtime = 'nodejs';
-export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
-import { BedrockInvoker } from '@/lib/bedrock/invoker';
-import type { ChatRequest } from '@/lib/models/types';
-import { DEFAULT_MODEL, isValidModelId, MODELS } from '@/lib/models/config';
-import type { ModelId } from '@/types';
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { AWS_REGION, getModelConfig, isValidModelId, DEFAULT_MODEL } from '@/config';
 
-function calculateCost(modelId: ModelId, inputTokens: number, outputTokens: number): number {
-  const model = MODELS[modelId];
-  if (!model) return 0;
-  const inputCost = (inputTokens / 1000) * model.inputPricePer1K;
-  const outputCost = (outputTokens / 1000) * model.outputPricePer1K;
-  return Number((inputCost + outputCost).toFixed(6));
-}
+// ✅ Inisialisasi Bedrock Client (TANPA rate limiting)
+const bedrockClient = new BedrockRuntimeClient({
+  region: AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
+});
 
 export async function POST(req: NextRequest) {
-  const startTime = Date.now();
   try {
     const body = await req.json();
-    const modelId = body.modelId || DEFAULT_MODEL;
+    const { message, modelId = DEFAULT_MODEL, history = [] } = body;
 
-    if (!isValidModelId(modelId)) {
+    // ✅ Validasi input dasar (tanpa rate limiting)
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
       return NextResponse.json(
-        {
-          error: 'Invalid model ID: ' + modelId,
-          availableModels: [
-            'us.anthropic.claude-opus-4-6-v1:0',
-            'us.anthropic.claude-sonnet-4-0-v1:0',
-            'us.deepseek.r1-v1:0',
-            'us.meta.llama4-maverick-17b-instruct-v1:0',
-          ],
-        },
+        { error: 'Message is required' },
         { status: 400 }
       );
     }
 
-    const chatRequest: ChatRequest = {
-      messages: body.messages || [],
-      modelId,
-      temperature: body.temperature,
-      maxTokens: body.maxTokens,
-      enableThinking: body.enableThinking ?? false,
-      stream: body.stream ?? false,
-    };
+    // ✅ Validasi model
+    const selectedModelId = isValidModelId(modelId) ? modelId : DEFAULT_MODEL;
+    const modelConfig = getModelConfig(selectedModelId);
 
-    if (!chatRequest.messages.length) {
-      return NextResponse.json({ error: 'messages array cannot be empty' }, { status: 400 });
-    }
+    // ✅ Build request berdasarkan provider
+    let requestBody: string;
+    const provider = modelConfig.provider;
 
-    if (chatRequest.stream) {
-      const stream = await createStream(chatRequest);
-      return new Response(stream, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
+    if (provider === 'Anthropic') {
+      // Claude models
+      const messages = [
+        ...history.map((msg: { role: string; content: string }) => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+        { role: 'user', content: message },
+      ];
+
+      requestBody = JSON.stringify({
+        anthropic_version: 'bedrock-2023-05-31',
+        max_tokens: modelConfig.maxTokens,
+        messages,
+      });
+    } else if (provider === 'Amazon') {
+      // Titan models
+      requestBody = JSON.stringify({
+        inputText: message,
+        textGenerationConfig: {
+          maxTokenCount: modelConfig.maxTokens,
+          temperature: 0.7,
+          topP: 0.9,
         },
       });
+    } else if (provider === 'Meta') {
+      // Llama models
+      const prompt = `<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\n${message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n`;
+      requestBody = JSON.stringify({
+        prompt,
+        max_gen_len: modelConfig.maxTokens,
+        temperature: 0.7,
+        top_p: 0.9,
+      });
+    } else {
+      return NextResponse.json(
+        { error: `Unsupported provider: ${provider}` },
+        { status: 400 }
+      );
     }
 
-    const response = await BedrockInvoker.invoke(chatRequest);
-    const duration = Date.now() - startTime;
+    // ✅ Kirim request ke Bedrock (TANPA batasan)
+    const command = new InvokeModelCommand({
+      modelId: selectedModelId,
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: requestBody,
+    });
 
-    let cost: number | undefined;
-    if (response.usage) {
-      cost = calculateCost(modelId as ModelId, response.usage.inputTokens, response.usage.outputTokens);
+    const response = await bedrockClient.send(command);
+    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+    // ✅ Parse response berdasarkan provider
+    let assistantMessage: string;
+
+    if (provider === 'Anthropic') {
+      assistantMessage = responseBody.content?.[0]?.text || 'No response';
+    } else if (provider === 'Amazon') {
+      assistantMessage = responseBody.results?.[0]?.outputText || 'No response';
+    } else if (provider === 'Meta') {
+      assistantMessage = responseBody.generation || 'No response';
+    } else {
+      assistantMessage = 'No response';
     }
 
     return NextResponse.json({
-      content: response.content,
-      thinking: response.thinking,
-      model: response.model,
-      usage: response.usage,
-      cost,
-      duration,
+      message: assistantMessage,
+      model: selectedModelId,
     });
 
-  } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error('[API Chat Error]:', error);
+  } catch (error: unknown) {
+    console.error('Bedrock API Error:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
     return NextResponse.json(
-      { error: error.message || 'Internal server error', duration, timestamp: new Date().toISOString() },
+      {
+        error: 'Failed to get AI response',
+        details: errorMessage,
+      },
       { status: 500 }
     );
   }
-}
-
-async function createStream(request: ChatRequest): Promise<ReadableStream> {
-  const encoder = new TextEncoder();
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        const generator = BedrockInvoker.invokeStream(request);
-        for await (const chunk of generator) {
-          controller.enqueue(encoder.encode('data: ' + JSON.stringify({ content: chunk }) + '\n\n'));
-        }
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
-      } catch (error) {
-        controller.enqueue(encoder.encode('data: ' + JSON.stringify({ error: (error as Error).message }) + '\n\n'));
-        controller.close();
-      }
-    },
-  });
 }
