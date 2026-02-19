@@ -1,8 +1,8 @@
 // src/components/chat/ModelSelector.tsx
 'use client';
 
-import { getAllModels } from '@/config';
-import type { ModelId } from '@/config';
+import { getAllModels } from '@/lib/models/config';
+import type { ModelId } from '@/lib/models/config';
 
 interface ModelSelectorProps {
   selectedModel: string;
@@ -27,15 +27,7 @@ export default function ModelSelector({
         id="model-select"
         value={selectedModel}
         onChange={(e) => onModelChange(e.target.value as ModelId)}
-        className="
-          rounded-lg border border-gray-300 bg-white px-3 py-2
-          text-sm shadow-sm transition-colors
-          hover:border-gray-400
-          focus:border-blue-500 focus:outline-none focus:ring-2
-          focus:ring-blue-500/20
-          dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200
-          dark:hover:border-gray-500
-        "
+        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-gray-500"
       >
         {models.map((model) => (
           <option key={model.id} value={model.id}>
