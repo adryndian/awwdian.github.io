@@ -22,6 +22,10 @@ export const MODELS = {
     inputTokenLimit: 200000,
     supportsStreaming: true,
     supportsVision: true,
+    supportsThinking: true,
+    costLevel: 'high' as const,
+    inputPricePer1K: 0.015,
+    outputPricePer1K: 0.075,
   },
 
   // -----------------------------------------------
@@ -37,6 +41,10 @@ export const MODELS = {
     inputTokenLimit: 200000,
     supportsStreaming: true,
     supportsVision: true,
+    supportsThinking: false,
+    costLevel: 'medium' as const,
+    inputPricePer1K: 0.003,
+    outputPricePer1K: 0.015,
   },
 
   // -----------------------------------------------
@@ -52,6 +60,10 @@ export const MODELS = {
     inputTokenLimit: 131072,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: false,
+    costLevel: 'low' as const,
+    inputPricePer1K: 0.00065,
+    outputPricePer1K: 0.00195,
   },
 } as const;
 
