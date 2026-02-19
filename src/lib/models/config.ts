@@ -1,23 +1,11 @@
-// src/lib/models/config.ts
-
-// ============================================
-// AWS Region Configuration
-// ============================================
 export const AWS_REGION: string = process.env.AWS_REGION || 'us-west-2';
 
-// ============================================
-// AI Model Definitions (AWS Bedrock - Latest)
-// ============================================
 export const MODELS = {
-  // -----------------------------------------------
-  // Anthropic - Claude Opus 4.6 (Flagship Model)
-  // -----------------------------------------------
   'anthropic.claude-opus-4-6-20250514-v1:0': {
-    id: 'anthropic.claude-opus-4-6-20250514-v1:0',
+    id: 'anthropic.claude-opus-4-6-20250514-v1:0' as const,
     name: 'Claude Opus 4.6',
     provider: 'Anthropic' as const,
-    description:
-      'Most powerful Claude model — superior reasoning, coding, and complex analysis',
+    description: 'Most powerful Claude model',
     maxTokens: 16384,
     inputTokenLimit: 200000,
     supportsStreaming: true,
@@ -27,16 +15,11 @@ export const MODELS = {
     inputPricePer1K: 0.015,
     outputPricePer1K: 0.075,
   },
-
-  // -----------------------------------------------
-  // Anthropic - Claude Sonnet 4.0 (Balanced Model)
-  // -----------------------------------------------
   'anthropic.claude-sonnet-4-20250514-v1:0': {
-    id: 'anthropic.claude-sonnet-4-20250514-v1:0',
+    id: 'anthropic.claude-sonnet-4-20250514-v1:0' as const,
     name: 'Claude Sonnet 4.0',
     provider: 'Anthropic' as const,
-    description:
-      'Balanced performance — fast, intelligent, and cost-efficient',
+    description: 'Balanced performance and cost',
     maxTokens: 8192,
     inputTokenLimit: 200000,
     supportsStreaming: true,
@@ -46,16 +29,11 @@ export const MODELS = {
     inputPricePer1K: 0.003,
     outputPricePer1K: 0.015,
   },
-
-  // -----------------------------------------------
-  // Meta - Llama 4 Maverick (Open Source Powerhouse)
-  // -----------------------------------------------
   'meta.llama4-maverick-17b-128e-instruct-v1:0': {
-    id: 'meta.llama4-maverick-17b-128e-instruct-v1:0',
+    id: 'meta.llama4-maverick-17b-128e-instruct-v1:0' as const,
     name: 'Llama 4 Maverick',
     provider: 'Meta' as const,
-    description:
-      'Latest open-source model by Meta — 17B params with 128 experts MoE architecture',
+    description: 'Open-source model by Meta',
     maxTokens: 8192,
     inputTokenLimit: 131072,
     supportsStreaming: true,
@@ -67,22 +45,12 @@ export const MODELS = {
   },
 } as const;
 
-// ============================================
-// Type Definitions
-// ============================================
 export type ModelId = keyof typeof MODELS;
 export type ModelConfig = (typeof MODELS)[ModelId];
 export type Provider = ModelConfig['provider'];
 
-// ============================================
-// Default Model
-// ============================================
-export const DEFAULT_MODEL: ModelId =
-  'anthropic.claude-sonnet-4-20250514-v1:0';
+export const DEFAULT_MODEL: ModelId = 'anthropic.claude-sonnet-4-20250514-v1:0';
 
-// ============================================
-// Helper Functions
-// ============================================
 export function isValidModelId(modelId: string): modelId is ModelId {
   return modelId in MODELS;
 }

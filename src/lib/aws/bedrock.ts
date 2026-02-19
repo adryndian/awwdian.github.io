@@ -1,5 +1,3 @@
-// src/lib/aws/bedrock.ts
-
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 import { AWS_REGION } from '@/lib/models/config';
 

@@ -1,24 +1,14 @@
-// src/types/index.ts
-
-// ============================================
-// Import canonical types from models config
-// ============================================
 import type {
   ModelId as ConfigModelId,
   ModelConfig as ConfigModelConfig,
   Provider,
 } from '@/lib/models/config';
 
-// Re-export canonical ModelId (single source of truth)
 export type ModelId = ConfigModelId;
 export type ModelProvider = Provider;
 export type { ConfigModelConfig as ModelConfigType };
 
-// ============================================
-// Message Types
-// ============================================
 export type MessageRole = 'user' | 'assistant' | 'system';
-
 export type AiStatus = 'idle' | 'loading' | 'streaming' | 'error';
 
 export interface Message {
@@ -41,9 +31,6 @@ export interface FileAttachment {
   content?: string;
 }
 
-// ============================================
-// Chat Session Types
-// ============================================
 export interface ChatSession {
   id: string;
   title: string;
@@ -53,9 +40,6 @@ export interface ChatSession {
   updatedAt: Date;
 }
 
-// ============================================
-// API Types
-// ============================================
 export interface ApiResponse {
   content?: string;
   message?: string;
