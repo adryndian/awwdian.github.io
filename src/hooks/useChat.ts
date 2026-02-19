@@ -1,102 +1,94 @@
+// src/hooks/useChat.ts
 'use client';
 
 import { useState, useCallback } from 'react';
-import { MODELS, DEFAULT_MODEL, isValidModelId } from '@/lib/models/config';
-import type { ModelId } from '@/types';
+import { DEFAULT_MODEL } from '@/lib/models/config';
 
 interface Message {
-  id: string;
   role: 'user' | 'assistant';
   content: string;
-  thinking?: string;
-  model?: string;
-  cost?: number;
-  timestamp: Date;
 }
 
 interface UseChatOptions {
-  initialModel?: ModelId;
+  modelId?: string;
 }
 
-export function useChat(options: UseChatOptions = {}) {
+interface UseChatReturn {
+  messages: Message[];
+  isLoading: boolean;
+  error: string | null;
+  sendMessage: (content: string) => Promise<void>;
+  clearMessages: () => void;
+  setModelId: (modelId: string) => void;
+}
+
+export function useChat(options?: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentModel, setCurrentModel] = useState<ModelId>(
-    (options.initialModel || DEFAULT_MODEL) as ModelId
-  );
   const [error, setError] = useState<string | null>(null);
+  const [modelId, setModelId] = useState(options?.modelId || DEFAULT_MODEL);
 
   const sendMessage = useCallback(
-    async (content: string, enableThinking = false) => {
+    async (content: string) => {
+      if (!content.trim()) return;
+
+      const userMessage: Message = { role: 'user', content: content.trim() };
+
+      setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
       setError(null);
 
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        role: 'user',
-        content,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, userMessage]);
-
       try {
+        const history = messages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        }));
+
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            messages: [...messages, userMessage].map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-            modelId: currentModel,
-            enableThinking: enableThinking && currentModel === 'us.anthropic.claude-opus-4-6-v1:0',
-            stream: false,
+            message: content.trim(),
+            modelId,
+            history,
           }),
         });
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to get response');
+          throw new Error(errorData.error || 'Request failed');
         }
 
         const data = await response.json();
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: data.content,
-            thinking: data.thinking,
-            model: data.model,
-            cost: data.cost,
-            timestamp: new Date(),
-          },
-        ]);
-      } catch (err: any) {
-        setError(err.message);
-        console.error('[useChat] Error:', err);
+
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.message,
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+      } catch (err) {
+        const errorMsg =
+          err instanceof Error ? err.message : 'Something went wrong';
+        setError(errorMsg);
       } finally {
         setIsLoading(false);
       }
     },
-    [messages, currentModel]
+    [messages, modelId]
   );
 
-  const clearChat = useCallback(() => { setMessages([]); setError(null); }, []);
-
-  const changeModel = useCallback((newModelId: string) => {
-    if (isValidModelId(newModelId)) setCurrentModel(newModelId as ModelId);
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    setError(null);
   }, []);
 
   return {
     messages,
     isLoading,
-    currentModel,
     error,
-    models: Object.values(MODELS),
     sendMessage,
-    clearChat,
-    changeModel,
-    setCurrentModel: changeModel,
+    clearMessages,
+    setModelId,
   };
 }
