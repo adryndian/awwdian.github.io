@@ -1,87 +1,66 @@
-export const AWS_REGION = process.env.AWS_REGION || 'us-west-2';
-import type { ModelId, ModelConfig } from '@/types';
+// src/lib/models/config.ts
 
-export { type ModelId } from '@/types';
+// ✅ AWS Region Configuration
+export const AWS_REGION: string = process.env.AWS_REGION || 'us-east-1';
 
-export const MODEL_IDS = {
-  CLAUDE_OPUS_4_6:   'us.anthropic.claude-opus-4-6-v1:0',
-  CLAUDE_SONNET_4_0: 'us.anthropic.claude-sonnet-4-0-v1:0',
-  DEEPSEEK_R1:       'us.deepseek.r1-v1:0',
-  LLAMA_4_MAVERICK:  'us.meta.llama4-maverick-17b-instruct-v1:0',
+// ✅ Model Definitions
+export const MODELS = {
+  'anthropic.claude-3-sonnet-20240229-v1:0': {
+    id: 'anthropic.claude-3-sonnet-20240229-v1:0',
+    name: 'Claude 3 Sonnet',
+    provider: 'Anthropic',
+    description: 'Balanced performance and speed',
+    maxTokens: 4096,
+  },
+  'anthropic.claude-3-haiku-20240307-v1:0': {
+    id: 'anthropic.claude-3-haiku-20240307-v1:0',
+    name: 'Claude 3 Haiku',
+    provider: 'Anthropic',
+    description: 'Fast and compact',
+    maxTokens: 4096,
+  },
+  'anthropic.claude-3-5-sonnet-20240620-v1:0': {
+    id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+    name: 'Claude 3.5 Sonnet',
+    provider: 'Anthropic',
+    description: 'Most intelligent Claude model',
+    maxTokens: 4096,
+  },
+  'amazon.titan-text-express-v1': {
+    id: 'amazon.titan-text-express-v1',
+    name: 'Amazon Titan Text Express',
+    provider: 'Amazon',
+    description: 'Amazon general purpose model',
+    maxTokens: 4096,
+  },
+  'meta.llama3-8b-instruct-v1:0': {
+    id: 'meta.llama3-8b-instruct-v1:0',
+    name: 'Llama 3 8B Instruct',
+    provider: 'Meta',
+    description: 'Open source model by Meta',
+    maxTokens: 2048,
+  },
 } as const;
 
-export const MODELS: Record<ModelId, ModelConfig> = {
-  [MODEL_IDS.CLAUDE_OPUS_4_6]: {
-    id: MODEL_IDS.CLAUDE_OPUS_4_6,
-    name: 'Claude Opus 4.6',
-    provider: 'anthropic',
-    maxTokens: 8192,
-    supportsStreaming: true,
-    supportsThinking: true,
-    description: 'Maximum reasoning - extended thinking',
-    costLevel: 'high',
-    inputPricePer1K: 15.0,
-    outputPricePer1K: 75.0,
-  },
-  [MODEL_IDS.CLAUDE_SONNET_4_0]: {
-    id: MODEL_IDS.CLAUDE_SONNET_4_0,
-    name: 'Claude Sonnet 4.0',
-    provider: 'anthropic',
-    maxTokens: 8192,
-    supportsStreaming: true,
-    supportsThinking: false,
-    description: 'Balanced performance - fast and smart',
-    costLevel: 'medium',
-    inputPricePer1K: 3.0,
-    outputPricePer1K: 15.0,
-  },
-  [MODEL_IDS.DEEPSEEK_R1]: {
-    id: MODEL_IDS.DEEPSEEK_R1,
-    name: 'DeepSeek R1',
-    provider: 'deepseek',
-    maxTokens: 8192,
-    supportsStreaming: true,
-    supportsThinking: true,
-    description: 'Open source reasoning - cost effective',
-    costLevel: 'low',
-    inputPricePer1K: 0.55,
-    outputPricePer1K: 2.19,
-  },
-  [MODEL_IDS.LLAMA_4_MAVERICK]: {
-    id: MODEL_IDS.LLAMA_4_MAVERICK,
-    name: 'Llama 4 Maverick',
-    provider: 'meta',
-    maxTokens: 8192,
-    supportsStreaming: true,
-    supportsThinking: false,
-    description: 'Meta open source - efficient and fast',
-    costLevel: 'low',
-    inputPricePer1K: 0.19,
-    outputPricePer1K: 0.19,
-  },
-};
+// ✅ Type Definitions
+export type ModelId = keyof typeof MODELS;
+export type ModelConfig = (typeof MODELS)[ModelId];
 
-export const DEFAULT_MODEL: ModelId = MODEL_IDS.CLAUDE_SONNET_4_0;
+// ✅ Default Model
+export const DEFAULT_MODEL: ModelId = 'anthropic.claude-3-sonnet-20240229-v1:0';
 
-export function isValidModelId(id: string): id is ModelId {
-  return Object.values(MODEL_IDS).includes(id as ModelId);
+// ✅ Helper Functions
+export function isValidModelId(modelId: string): modelId is ModelId {
+  return modelId in MODELS;
 }
 
-export function getModelConfig(id: string): ModelConfig {
-  if (!isValidModelId(id)) {
-    throw new Error('Invalid model ID: ' + id);
+export function getModelConfig(modelId: string): ModelConfig {
+  if (!isValidModelId(modelId)) {
+    return MODELS[DEFAULT_MODEL];
   }
-  return MODELS[id as ModelId];
+  return MODELS[modelId];
 }
 
-export function calculateCost(
-  modelId: ModelId,
-  inputTokens: number,
-  outputTokens: number
-): number {
-  const model = MODELS[modelId];
-  if (!model) return 0;
-  const inputCost = (inputTokens / 1000) * model.inputPricePer1K;
-  const outputCost = (outputTokens / 1000) * model.outputPricePer1K;
-  return Number((inputCost + outputCost).toFixed(6));
+export function getAllModels(): ModelConfig[] {
+  return Object.values(MODELS);
 }
