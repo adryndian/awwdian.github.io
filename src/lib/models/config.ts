@@ -3,8 +3,6 @@ import type { ModelId, ModelConfig } from '@/types';
 
 export { type ModelId } from '@/types';
 
-export const AWS_REGION = process.env.AWS_REGION || 'us-west-2';
-
 export const MODEL_IDS = {
   CLAUDE_OPUS_4_6:   'us.anthropic.claude-opus-4-6-v1:0',
   CLAUDE_SONNET_4_0: 'us.anthropic.claude-sonnet-4-0-v1:0',
