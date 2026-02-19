@@ -4,17 +4,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   BedrockRuntimeClient,
   InvokeModelCommand,
-  InvokeModelWithResponseStreamCommand,
 } from '@aws-sdk/client-bedrock-runtime';
 import {
   AWS_REGION,
   getModelConfig,
   isValidModelId,
   DEFAULT_MODEL,
-} from '@/config';
+} from '@/lib/models/config';
 
 // ============================================
-// Bedrock Client (us-west-2)
+// Bedrock Client (us-west-2) — No rate limiting
 // ============================================
 const bedrockClient = new BedrockRuntimeClient({
   region: AWS_REGION,
@@ -32,24 +31,16 @@ interface ChatMessage {
   content: string;
 }
 
-interface ChatRequestBody {
-  message: string;
-  modelId?: string;
-  history?: ChatMessage[];
-  stream?: boolean;
-  temperature?: number;
-  maxTokens?: number;
-}
-
 // ============================================
-// Request Body Builders (per Provider)
+// Request Body Builders
 // ============================================
 
 function buildAnthropicBody(
   message: string,
   history: ChatMessage[],
   maxTokens: number,
-  temperature: number
+  temperature: number,
+  enableThinking: boolean
 ): string {
   const messages = [
     ...history.map((msg) => ({
@@ -59,12 +50,23 @@ function buildAnthropicBody(
     { role: 'user', content: message },
   ];
 
-  return JSON.stringify({
+  const body: Record<string, unknown> = {
     anthropic_version: 'bedrock-2023-05-31',
     max_tokens: maxTokens,
     temperature,
     messages,
-  });
+  };
+
+  // Extended thinking for Opus 4.6
+  if (enableThinking) {
+    body.temperature = 1; // Required for extended thinking
+    body.thinking = {
+      type: 'enabled',
+      budget_tokens: 10000,
+    };
+  }
+
+  return JSON.stringify(body);
 }
 
 function buildMetaLlama4Body(
@@ -73,70 +75,90 @@ function buildMetaLlama4Body(
   maxTokens: number,
   temperature: number
 ): string {
-  // Llama 4 Maverick menggunakan format chat messages
-  const messages = [
-    {
-      role: 'system',
-      content: 'You are a helpful, harmless, and honest AI assistant.',
-    },
-    ...history.map((msg) => ({
-      role: msg.role,
-      content: msg.content,
-    })),
-    { role: 'user', content: message },
-  ];
+  // Build chat prompt for Llama 4 Maverick
+  let prompt = '<|begin_of_text|>';
+  prompt +=
+    '<|start_header_id|>system<|end_header_id|>\n\nYou are a helpful, harmless, and honest AI assistant.<|eot_id|>';
+
+  for (const msg of history) {
+    prompt += `<|start_header_id|>${msg.role}<|end_header_id|>\n\n${msg.content}<|eot_id|>`;
+  }
+
+  prompt += `<|start_header_id|>user<|end_header_id|>\n\n${message}<|eot_id|>`;
+  prompt += '<|start_header_id|>assistant<|end_header_id|>\n\n';
 
   return JSON.stringify({
-    prompt: formatLlama4ChatPrompt(messages),
+    prompt,
     max_gen_len: maxTokens,
     temperature,
     top_p: 0.9,
   });
 }
 
-function formatLlama4ChatPrompt(
-  messages: { role: string; content: string }[]
-): string {
-  // Llama 4 chat template
-  let prompt = '<|begin_of_text|>';
+// ============================================
+// Response Parsers
+// ============================================
 
-  for (const msg of messages) {
-    prompt += `<|start_header_id|>${msg.role}<|end_header_id|>\n\n${msg.content}<|eot_id|>`;
+function parseAnthropicResponse(responseBody: Record<string, unknown>): {
+  content: string;
+  thinking?: string;
+} {
+  const contentBlocks = responseBody.content as Array<{
+    type: string;
+    text?: string;
+    thinking?: string;
+  }>;
+
+  let content = '';
+  let thinking = '';
+
+  if (contentBlocks && Array.isArray(contentBlocks)) {
+    for (const block of contentBlocks) {
+      if (block.type === 'thinking' && block.thinking) {
+        thinking += block.thinking;
+      } else if (block.type === 'text' && block.text) {
+        content += block.text;
+      }
+    }
   }
 
-  // Signal the model to generate assistant response
-  prompt += '<|start_header_id|>assistant<|end_header_id|>\n\n';
+  return {
+    content: content || 'No response from Claude.',
+    thinking: thinking || undefined,
+  };
+}
 
-  return prompt;
+function parseMetaResponse(responseBody: Record<string, unknown>): {
+  content: string;
+} {
+  const generation = (responseBody.generation as string) || '';
+  return {
+    content: generation || 'No response from Llama.',
+  };
 }
 
 // ============================================
-// Response Parsers (per Provider)
+// Cost Calculator
 // ============================================
 
-function parseAnthropicResponse(responseBody: Record<string, unknown>): string {
-  const content = responseBody.content as Array<{ type: string; text: string }>;
-  if (content && content.length > 0) {
-    return content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('');
-  }
-  return 'No response from Claude.';
-}
-
-function parseMetaResponse(responseBody: Record<string, unknown>): string {
-  return (responseBody.generation as string) || 'No response from Llama.';
+function calculateCost(
+  modelId: string,
+  inputTokens: number,
+  outputTokens: number
+): number {
+  const config = getModelConfig(modelId);
+  const inputCost = (inputTokens / 1000) * config.inputPricePer1K;
+  const outputCost = (outputTokens / 1000) * config.outputPricePer1K;
+  return inputCost + outputCost;
 }
 
 // ============================================
-// Main API Handler — NO RATE LIMITING (Personal Use)
+// Main Handler — NO RATE LIMITING (Personal Use)
 // ============================================
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ Parse request body
-    const body: ChatRequestBody = await req.json();
+    const body = await req.json();
     const {
       message,
       modelId = DEFAULT_MODEL,
@@ -145,35 +167,46 @@ export async function POST(req: NextRequest) {
       maxTokens,
     } = body;
 
-    // ✅ Validasi input
-    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    // Validate input
+    if (
+      !message ||
+      typeof message !== 'string' ||
+      message.trim().length === 0
+    ) {
       return NextResponse.json(
-        { error: 'Message is required and must be a non-empty string.' },
+        { error: 'Message is required.' },
         { status: 400 }
       );
     }
 
-    // ✅ Validasi & resolve model
-    const selectedModelId = isValidModelId(modelId) ? modelId : DEFAULT_MODEL;
+    // Resolve model
+    const selectedModelId = isValidModelId(modelId)
+      ? modelId
+      : DEFAULT_MODEL;
     const modelConfig = getModelConfig(selectedModelId);
     const effectiveMaxTokens = maxTokens || modelConfig.maxTokens;
 
-    // ✅ Build request body berdasarkan provider
+    // Determine if thinking is supported
+    const enableThinking =
+      modelConfig.supportsThinking === true;
+
+    // Build request body
     let requestBody: string;
 
     switch (modelConfig.provider) {
       case 'Anthropic':
         requestBody = buildAnthropicBody(
-          message,
+          message.trim(),
           history,
           effectiveMaxTokens,
-          temperature
+          enableThinking ? 1 : temperature,
+          enableThinking
         );
         break;
 
       case 'Meta':
         requestBody = buildMetaLlama4Body(
-          message,
+          message.trim(),
           history,
           effectiveMaxTokens,
           temperature
@@ -187,7 +220,13 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    // ✅ Kirim ke AWS Bedrock — TANPA BATASAN APAPUN
+    // Send to Bedrock
+    console.log(
+      `[Bedrock] → ${modelConfig.name} (${selectedModelId}) in ${AWS_REGION}`
+    );
+
+    const startTime = Date.now();
+
     const command = new InvokeModelCommand({
       modelId: selectedModelId,
       contentType: 'application/json',
@@ -195,101 +234,102 @@ export async function POST(req: NextRequest) {
       body: requestBody,
     });
 
-    console.log(`[Bedrock] Sending request to ${selectedModelId} in ${AWS_REGION}`);
-
     const response = await bedrockClient.send(command);
+    const duration = Date.now() - startTime;
+
     const responseBody = JSON.parse(
       new TextDecoder().decode(response.body)
     ) as Record<string, unknown>;
 
-    // ✅ Parse response berdasarkan provider
-    let assistantMessage: string;
+    // Parse response
+    let content: string;
+    let thinking: string | undefined;
 
     switch (modelConfig.provider) {
-      case 'Anthropic':
-        assistantMessage = parseAnthropicResponse(responseBody);
+      case 'Anthropic': {
+        const parsed = parseAnthropicResponse(responseBody);
+        content = parsed.content;
+        thinking = parsed.thinking;
         break;
-
-      case 'Meta':
-        assistantMessage = parseMetaResponse(responseBody);
+      }
+      case 'Meta': {
+        const parsed = parseMetaResponse(responseBody);
+        content = parsed.content;
         break;
-
+      }
       default:
-        assistantMessage = 'Unsupported provider response.';
+        content = 'Unsupported provider.';
     }
 
+    // Extract token usage (if available)
+    const usage = responseBody.usage as
+      | { input_tokens?: number; output_tokens?: number }
+      | undefined;
+    const inputTokens = usage?.input_tokens || 0;
+    const outputTokens = usage?.output_tokens || 0;
+    const cost =
+      inputTokens > 0 || outputTokens > 0
+        ? calculateCost(selectedModelId, inputTokens, outputTokens)
+        : undefined;
+
     console.log(
-      `[Bedrock] Response received from ${modelConfig.name} (${assistantMessage.length} chars)`
+      `[Bedrock] ← ${modelConfig.name} | ${content.length} chars | ${duration}ms | ${inputTokens}+${outputTokens} tokens`
     );
 
-    // ✅ Return response
+    // Return response
     return NextResponse.json({
-      message: assistantMessage,
+      message: content,
       model: selectedModelId,
       modelName: modelConfig.name,
       provider: modelConfig.provider,
-      usage: {
-        maxTokens: effectiveMaxTokens,
-      },
+      thinking,
+      cost,
+      inputTokens,
+      outputTokens,
+      duration,
     });
   } catch (error: unknown) {
-    console.error('[Bedrock] API Error:', error);
+    console.error('[Bedrock] Error:', error);
 
-    // ✅ Detailed error handling
     if (error instanceof Error) {
-      // AWS SDK specific errors
       const awsError = error as Error & {
         name?: string;
         $metadata?: { httpStatusCode?: number };
       };
 
-      if (awsError.name === 'AccessDeniedException') {
-        return NextResponse.json(
-          {
-            error: 'Access denied to AWS Bedrock model.',
-            details:
-              'Pastikan IAM role/user memiliki permission bedrock:InvokeModel dan model sudah di-enable di AWS Bedrock console.',
-          },
-          { status: 403 }
-        );
-      }
+      const errorMap: Record<string, { msg: string; status: number }> = {
+        AccessDeniedException: {
+          msg: 'Access denied. Pastikan IAM memiliki permission bedrock:InvokeModel dan model sudah di-enable.',
+          status: 403,
+        },
+        ValidationException: {
+          msg: `Validation error: ${awsError.message}`,
+          status: 400,
+        },
+        ThrottlingException: {
+          msg: 'AWS Bedrock throttling. Coba lagi dalam beberapa detik.',
+          status: 429,
+        },
+        ModelNotReadyException: {
+          msg: 'Model sedang cold start. Coba lagi.',
+          status: 503,
+        },
+        ResourceNotFoundException: {
+          msg: 'Model tidak ditemukan. Pastikan model ID benar dan sudah di-enable di Bedrock console.',
+          status: 404,
+        },
+      };
 
-      if (awsError.name === 'ValidationException') {
+      const mapped = errorMap[awsError.name || ''];
+      if (mapped) {
         return NextResponse.json(
-          {
-            error: 'Invalid request to Bedrock.',
-            details: awsError.message,
-          },
-          { status: 400 }
-        );
-      }
-
-      if (awsError.name === 'ThrottlingException') {
-        return NextResponse.json(
-          {
-            error: 'AWS Bedrock is throttling requests.',
-            details: 'Coba lagi dalam beberapa detik.',
-          },
-          { status: 429 }
-        );
-      }
-
-      if (awsError.name === 'ModelNotReadyException') {
-        return NextResponse.json(
-          {
-            error: 'Model belum ready.',
-            details: 'Model mungkin sedang cold start. Coba lagi.',
-          },
-          { status: 503 }
+          { error: mapped.msg },
+          { status: mapped.status }
         );
       }
 
       return NextResponse.json(
-        {
-          error: 'Failed to get AI response.',
-          details: awsError.message,
-          errorType: awsError.name,
-        },
+        { error: `Bedrock error: ${awsError.message}` },
         { status: 500 }
       );
     }
@@ -301,19 +341,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ============================================
-// Streaming Endpoint (Optional - for better UX)
-// ============================================
-
+// Health check
 export async function GET() {
   return NextResponse.json({
     status: 'ok',
     region: AWS_REGION,
-    availableModels: [
-      'Claude Opus 4.6',
-      'Claude Sonnet 4.0',
-      'Llama 4 Maverick',
-    ],
-    rateLimit: 'none (personal use)',
+    models: Object.values(
+      await import('@/lib/models/config').then((m) => m.MODELS)
+    ).map((m) => m.name),
   });
 }
