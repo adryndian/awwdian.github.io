@@ -20,7 +20,7 @@ export const MODELS: Record<string, ModelDef> = {
     id: 'us.anthropic.claude-opus-4-20250514-v1:0',
     name: 'Claude Opus 4.6',
     provider: 'Anthropic',
-    description: 'Most powerful Claude model v4.6 — superior reasoning, coding, and complex analysis',
+    description: 'Most powerful Claude model v4.6 -- superior reasoning, coding, and complex analysis',
     maxTokens: 16384,
     inputTokenLimit: 200000,
     supportsStreaming: true,
@@ -34,7 +34,7 @@ export const MODELS: Record<string, ModelDef> = {
     id: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
     name: 'Claude Sonnet 4.0',
     provider: 'Anthropic',
-    description: 'Balanced performance — fast, intelligent, and cost-efficient',
+    description: 'Balanced performance -- fast, intelligent, and cost-efficient',
     maxTokens: 8192,
     inputTokenLimit: 200000,
     supportsStreaming: true,
@@ -48,7 +48,7 @@ export const MODELS: Record<string, ModelDef> = {
     id: 'us.meta.llama4-maverick-17b-128e-instruct-v1:0',
     name: 'Llama 4 Maverick',
     provider: 'Meta',
-    description: 'Latest open-source model by Meta — 17B params with 128 experts MoE',
+    description: 'Latest open-source model by Meta -- 17B params with 128 experts MoE',
     maxTokens: 8192,
     inputTokenLimit: 131072,
     supportsStreaming: true,
@@ -61,7 +61,6 @@ export const MODELS: Record<string, ModelDef> = {
 };
 
 export type ModelId = string;
-
 export const DEFAULT_MODEL = 'us.anthropic.claude-sonnet-4-20250514-v1:0';
 
 export function isValidModelId(modelId: string): boolean {
@@ -69,9 +68,7 @@ export function isValidModelId(modelId: string): boolean {
 }
 
 export function getModelConfig(modelId: string): ModelDef {
-  if (modelId in MODELS) {
-    return MODELS[modelId];
-  }
+  if (modelId in MODELS) return MODELS[modelId];
   return MODELS[DEFAULT_MODEL];
 }
 
