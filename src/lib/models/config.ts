@@ -13,6 +13,7 @@ export interface ModelDef {
   costLevel: 'high' | 'medium' | 'low';
   inputPricePer1K: number;
   outputPricePer1K: number;
+  useConverseAPI?: boolean;
 }
 
 export const MODELS: Record<string, ModelDef> = {
@@ -48,7 +49,7 @@ export const MODELS: Record<string, ModelDef> = {
     id: 'us.meta.llama4-maverick-17b-128e-instruct-v1:0',
     name: 'Llama 4 Maverick',
     provider: 'Meta',
-    description: 'Latest open-source model by Meta -- 17B params with 128 experts MoE',
+    description: 'Latest open-source model by Meta -- 17B active params, 128 experts MoE',
     maxTokens: 8192,
     inputTokenLimit: 131072,
     supportsStreaming: true,
@@ -57,6 +58,7 @@ export const MODELS: Record<string, ModelDef> = {
     costLevel: 'low',
     inputPricePer1K: 0.00065,
     outputPricePer1K: 0.00195,
+    useConverseAPI: true,
   },
 };
 

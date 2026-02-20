@@ -1,8 +1,9 @@
 'use client';
 
-import { ChatContainer } from '@/components/chat/ChatContainer';
-import { DEFAULT_MODEL } from '@/lib/models/config';
+import dynamic from 'next/dynamic';
+
+const App = dynamic(() => import('@/components/chat/App'), { ssr: false });
 
 export default function Home() {
-  return <ChatContainer initialModel={DEFAULT_MODEL} />;
+  return <App />;
 }
