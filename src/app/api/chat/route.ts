@@ -11,14 +11,20 @@ const client = new BedrockRuntimeClient({
 });
 
 interface ChatMsg {
-  role: 'user' | 'assistant';
+  role: string;
   content: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { message, modelId = DEFAULT_MODEL, history = [], temperature = 0.7, maxTokens } = body;
+    const {
+      message,
+      modelId = DEFAULT_MODEL,
+      history = [],
+      temperature = 0.7,
+      maxTokens,
+    } = body;
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       return NextResponse.json({ error: 'Message required.' }, { status: 400 });
@@ -47,14 +53,16 @@ export async function POST(req: NextRequest) {
       }
       reqBody = JSON.stringify(payload);
     } else if (mc.provider === 'Meta') {
-      let prompt = '<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful AI assistant.<|eot_id|>';
+      let prompt = '<|begin_of_text|>';
+      prompt += '<|start_header_id|>system<|end_header_id|>\n\nYou are a helpful AI assistant.<|eot_id|>';
       for (const m of history as ChatMsg[]) {
-        prompt += `<|start_header_id|>${m.role}<|end_header_id|>\n\n${m.content}<|eot_id|>`;
+        prompt += '<|start_header_id|>' + m.role + '<|end_header_id|>\n\n' + m.content + '<|eot_id|>';
       }
-      prompt += `<|start_header_id|>user<|end_header_id|>\n\n${message.trim()}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n`;
+      prompt += '<|start_header_id|>user<|end_header_id|>\n\n' + message.trim() + '<|eot_id|>';
+      prompt += '<|start_header_id|>assistant<|end_header_id|>\n\n';
       reqBody = JSON.stringify({ prompt, max_gen_len: effMax, temperature, top_p: 0.9 });
     } else {
-      return NextResponse.json({ error: `Unsupported: ${mc.provider}` }, { status: 400 });
+      return NextResponse.json({ error: 'Unsupported provider: ' + mc.provider }, { status: 400 });
     }
 
     const start = Date.now();
@@ -72,7 +80,7 @@ export async function POST(req: NextRequest) {
     let thinking: string | undefined;
 
     if (mc.provider === 'Anthropic') {
-      const blocks = resBody.content as Array<{ type: string; text?: string; thinking?: string }>;
+      const blocks = resBody.content;
       if (blocks && Array.isArray(blocks)) {
         for (const b of blocks) {
           if (b.type === 'thinking' && b.thinking) thinking = (thinking || '') + b.thinking;
@@ -84,12 +92,13 @@ export async function POST(req: NextRequest) {
       content = resBody.generation || 'No response.';
     }
 
-    const usage = resBody.usage as { input_tokens?: number; output_tokens?: number } | undefined;
+    const usage = resBody.usage;
     const inTok = usage?.input_tokens || 0;
     const outTok = usage?.output_tokens || 0;
-    const costVal = inTok > 0 || outTok > 0
-      ? (inTok / 1000) * mc.inputPricePer1K + (outTok / 1000) * mc.outputPricePer1K
-      : undefined;
+    const costVal =
+      inTok > 0 || outTok > 0
+        ? (inTok / 1000) * mc.inputPricePer1K + (outTok / 1000) * mc.outputPricePer1K
+        : undefined;
 
     return NextResponse.json({
       message: content,
@@ -105,24 +114,21 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     console.error('[Bedrock]', error);
     if (error instanceof Error) {
-      const ae = error as Error & { name?: string };
-      if (ae.name === 'AccessDeniedException')
+      const name = (error as Error & { name?: string }).name || '';
+      if (name === 'AccessDeniedException')
         return NextResponse.json({ error: 'Access denied. Check IAM + model access.' }, { status: 403 });
-      if (ae.name === 'ValidationException')
-        return NextResponse.json({ error: ae.message }, { status: 400 });
-      if (ae.name === 'ThrottlingException')
+      if (name === 'ValidationException')
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      if (name === 'ThrottlingException')
         return NextResponse.json({ error: 'Throttled. Retry.' }, { status: 429 });
-      if (ae.name === 'ResourceNotFoundException')
+      if (name === 'ResourceNotFoundException')
         return NextResponse.json({ error: 'Model not found.' }, { status: 404 });
-      return NextResponse.json({ error: ae.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
     return NextResponse.json({ error: 'Unexpected error.' }, { status: 500 });
   }
 }
 
 export async function GET() {
-  return NextResponse.json({
-    status: 'ok',
-    region: AWS_REGION,
-  });
+  return NextResponse.json({ status: 'ok', region: AWS_REGION });
 }
