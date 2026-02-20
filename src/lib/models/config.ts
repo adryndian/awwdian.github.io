@@ -17,8 +17,8 @@ export interface ModelDef {
 }
 
 export const MODELS: Record<string, ModelDef> = {
-  'us.anthropic.claude-opus-4-20250514-v1:0': {
-    id: 'us.anthropic.claude-opus-4-20250514-v1:0',
+  'us.anthropic.claude-opus-4-6-v1': {
+    id: 'us.anthropic.claude-opus-4-6-v1',
     name: 'Claude Opus 4.6',
     provider: 'Anthropic',
     description: 'Most powerful Claude model v4.6 -- superior reasoning, coding, and complex analysis',
