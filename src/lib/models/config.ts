@@ -15,18 +15,12 @@ export interface ModelDef {
   outputPricePer1K: number;
 }
 
-// ============================================
-// IMPORTANT: Menggunakan cross-region inference profile IDs
-// Prefix "us." diperlukan untuk model baru di AWS Bedrock
-// Ref: https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
-// ============================================
-
 export const MODELS: Record<string, ModelDef> = {
   'us.anthropic.claude-opus-4-20250514-v1:0': {
     id: 'us.anthropic.claude-opus-4-20250514-v1:0',
-    name: 'Claude Opus 4',
+    name: 'Claude Opus 4.6',
     provider: 'Anthropic',
-    description: 'Most powerful Claude model — superior reasoning, coding, and complex analysis',
+    description: 'Most powerful Claude model v4.6 — superior reasoning, coding, and complex analysis',
     maxTokens: 16384,
     inputTokenLimit: 200000,
     supportsStreaming: true,
@@ -38,7 +32,7 @@ export const MODELS: Record<string, ModelDef> = {
   },
   'us.anthropic.claude-sonnet-4-20250514-v1:0': {
     id: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
-    name: 'Claude Sonnet 4',
+    name: 'Claude Sonnet 4.0',
     provider: 'Anthropic',
     description: 'Balanced performance — fast, intelligent, and cost-efficient',
     maxTokens: 8192,

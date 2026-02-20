@@ -3,6 +3,15 @@ export type MessageRole = 'user' | 'assistant' | 'system';
 export type AiStatus = 'idle' | 'loading' | 'streaming' | 'error';
 export type ModelProvider = 'Anthropic' | 'Meta';
 
+export interface FileAttachment {
+  name: string;
+  type: string;
+  size: number;
+  content?: string;
+  base64?: string;
+  isImage?: boolean;
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
@@ -71,14 +80,6 @@ export interface SendMessagePayload {
   message: string;
   modelId: string;
   history: { role: string; content: string }[];
-}
-
-export interface FileAttachment {
-  name: string;
-  type: string;
-  size: number;
-  url?: string;
-  content?: string;
 }
 
 export interface ChatSession {
