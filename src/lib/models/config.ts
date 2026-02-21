@@ -22,7 +22,7 @@ export const MODELS: Record<string, ModelDef> = {
     name: 'Claude Opus 4.6',
     provider: 'Anthropic',
     description: 'Most powerful Claude model v4.6 -- superior reasoning, coding, and complex analysis',
-    maxTokens: 16384,
+    maxTokens: 500000,
     inputTokenLimit: 200000,
     supportsStreaming: true,
     supportsVision: true,
